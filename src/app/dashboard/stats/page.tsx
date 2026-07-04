@@ -3,11 +3,16 @@
 import { useCallback, useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { formatEUR, type Barber, type Sale, type SaleItem } from "@/lib/types";
+import { Card } from "@/components/ui/Card";
+import { EmptyState } from "@/components/ui/EmptyState";
+import { StatusDot } from "@/components/ui/Badge";
+import { cn } from "@/lib/cn";
 
 type SaleWithItems = Sale & { sale_items: SaleItem[] };
 type Range = 7 | 30 | 90;
 
-const ACCENT = "#6366f1"; // validé (contraste + bande de luminosité) sur zinc-950
+const ACCENT = "var(--color-gold-500)";
+const BAR_EMPTY = "var(--color-surface-2)";
 
 function dayKey(d: Date): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
@@ -19,7 +24,7 @@ export default function StatsPage() {
   const [barbers, setBarbers] = useState<Barber[]>([]);
 
   const load = useCallback(async () => {
-    const supabase = createClient();
+    const supabase = createClient("owner");
     const start = new Date();
     start.setDate(start.getDate() - (range - 1));
     start.setHours(0, 0, 0, 0);
@@ -41,7 +46,6 @@ export default function StatsPage() {
     void load();
   }, [load]);
 
-  // CA par jour (jours vides inclus)
   const days: { key: string; label: string; amount: number }[] = [];
   for (let i = range - 1; i >= 0; i--) {
     const d = new Date();
@@ -60,7 +64,6 @@ export default function StatsPage() {
   const maxDay = Math.max(...days.map((d) => d.amount), 1);
   const tickEvery = range === 7 ? 1 : range === 30 ? 5 : 15;
 
-  // Top prestations
   const byService = new Map<string, { amount: number; count: number }>();
   for (const s of sales) {
     for (const item of s.sale_items) {
@@ -75,7 +78,6 @@ export default function StatsPage() {
     .slice(0, 8);
   const maxService = Math.max(...topServices.map(([, v]) => v.amount), 1);
 
-  // Comparatif coiffeurs
   const byBarber = barbers
     .map((b) => ({
       barber: b,
@@ -93,14 +95,17 @@ export default function StatsPage() {
     <div className="space-y-6">
       <div className="flex items-center justify-between flex-wrap gap-3">
         <h1 className="text-xl font-bold">Stats</h1>
-        <div className="flex gap-1 bg-zinc-900 border border-zinc-800 rounded-lg p-1">
+        <div className="flex gap-1 bg-surface border border-border rounded-lg p-1">
           {([7, 30, 90] as Range[]).map((r) => (
             <button
               key={r}
               onClick={() => setRange(r)}
-              className={`px-3 py-1.5 rounded-md text-sm font-medium transition-colors duration-150 ${
-                range === r ? "bg-indigo-600 text-white" : "text-zinc-400 hover:text-zinc-100"
-              }`}
+              className={cn(
+                "px-3 py-1.5 rounded-md text-sm font-medium transition-colors duration-150",
+                range === r
+                  ? "bg-surface-2 text-gold-400"
+                  : "text-muted hover:text-foreground",
+              )}
             >
               {r} j
             </button>
@@ -108,13 +113,11 @@ export default function StatsPage() {
         </div>
       </div>
 
-      <section className="bg-zinc-900 border border-zinc-800 rounded-2xl p-5">
+      <Card>
         <div className="flex items-baseline justify-between mb-4">
-          <h2 className="text-sm uppercase tracking-wide text-zinc-500">
-            CA par jour
-          </h2>
-          <span className="text-sm text-zinc-400">
-            Total : <span className="text-zinc-100 font-semibold">{formatEUR(total)}</span>
+          <h2 className="text-sm uppercase tracking-wide text-muted">CA par jour</h2>
+          <span className="text-sm text-muted">
+            Total : <span className="text-foreground font-semibold">{formatEUR(total)}</span>
           </span>
         </div>
         <div className="flex items-end gap-[2px] h-40">
@@ -123,12 +126,12 @@ export default function StatsPage() {
               <div
                 className="rounded-t"
                 style={{
-                  backgroundColor: d.amount > 0 ? ACCENT : "#27272a",
+                  backgroundColor: d.amount > 0 ? ACCENT : BAR_EMPTY,
                   height: d.amount > 0 ? `${Math.max((d.amount / maxDay) * 100, 3)}%` : "2px",
                 }}
               />
-              <div className="pointer-events-none absolute bottom-full left-1/2 -translate-x-1/2 mb-2 hidden group-hover:block bg-zinc-800 border border-zinc-700 rounded-lg px-2.5 py-1.5 text-xs whitespace-nowrap z-10">
-                <span className="text-zinc-400">{d.label}</span>{" "}
+              <div className="pointer-events-none absolute bottom-full left-1/2 -translate-x-1/2 mb-2 hidden group-hover:block bg-surface-2 border border-border rounded-lg px-2.5 py-1.5 text-xs whitespace-nowrap z-10">
+                <span className="text-muted">{d.label}</span>{" "}
                 <span className="font-semibold">{formatEUR(d.amount)}</span>
               </div>
             </div>
@@ -136,70 +139,79 @@ export default function StatsPage() {
         </div>
         <div className="flex gap-[2px] mt-1">
           {days.map((d, i) => (
-            <span key={d.key} className="flex-1 text-[10px] text-zinc-500 text-center overflow-visible whitespace-nowrap">
+            <span
+              key={d.key}
+              className="flex-1 text-[10px] text-muted text-center overflow-visible whitespace-nowrap"
+            >
               {i % tickEvery === 0 ? d.label : ""}
             </span>
           ))}
         </div>
-      </section>
+      </Card>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <section className="bg-zinc-900 border border-zinc-800 rounded-2xl p-5">
-          <h2 className="text-sm uppercase tracking-wide text-zinc-500 mb-4">
+        <Card>
+          <h2 className="text-sm uppercase tracking-wide text-muted mb-4">
             Top prestations
           </h2>
           {topServices.length === 0 ? (
-            <p className="text-zinc-500 text-sm">Aucune vente sur la période.</p>
+            <EmptyState title="Aucune vente sur la période." />
           ) : (
             <div className="space-y-3">
               {topServices.map(([name, v]) => (
                 <div key={name}>
                   <div className="flex justify-between text-sm mb-1">
                     <span className="truncate">{name}</span>
-                    <span className="text-zinc-400 shrink-0 ml-2">
-                      {v.count} · <span className="text-zinc-100">{formatEUR(v.amount)}</span>
+                    <span className="text-muted shrink-0 ml-2">
+                      {v.count} · <span className="text-foreground">{formatEUR(v.amount)}</span>
                     </span>
                   </div>
-                  <div className="h-2.5 rounded bg-zinc-800">
+                  <div className="h-2.5 rounded bg-surface-2">
                     <div
                       className="h-full rounded"
-                      style={{ width: `${(v.amount / maxService) * 100}%`, backgroundColor: ACCENT }}
+                      style={{
+                        width: `${(v.amount / maxService) * 100}%`,
+                        backgroundColor: ACCENT,
+                      }}
                     />
                   </div>
                 </div>
               ))}
             </div>
           )}
-        </section>
+        </Card>
 
-        <section className="bg-zinc-900 border border-zinc-800 rounded-2xl p-5">
-          <h2 className="text-sm uppercase tracking-wide text-zinc-500 mb-4">
+        <Card>
+          <h2 className="text-sm uppercase tracking-wide text-muted mb-4">
             Comparatif coiffeurs
           </h2>
           {byBarber.length === 0 ? (
-            <p className="text-zinc-500 text-sm">Aucune vente sur la période.</p>
+            <EmptyState title="Aucune vente sur la période." />
           ) : (
             <div className="space-y-3">
               {byBarber.map(({ barber, amount }) => (
                 <div key={barber.id}>
                   <div className="flex justify-between text-sm mb-1">
                     <span className="flex items-center gap-2 truncate">
-                      <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: barber.color }} />
+                      <StatusDot style={{ backgroundColor: barber.color }} />
                       {barber.display_name}
                     </span>
-                    <span className="text-zinc-100 shrink-0 ml-2">{formatEUR(amount)}</span>
+                    <span className="text-foreground shrink-0 ml-2">{formatEUR(amount)}</span>
                   </div>
-                  <div className="h-2.5 rounded bg-zinc-800">
+                  <div className="h-2.5 rounded bg-surface-2">
                     <div
                       className="h-full rounded"
-                      style={{ width: `${(amount / maxBarber) * 100}%`, backgroundColor: ACCENT }}
+                      style={{
+                        width: `${(amount / maxBarber) * 100}%`,
+                        backgroundColor: ACCENT,
+                      }}
                     />
                   </div>
                 </div>
               ))}
             </div>
           )}
-        </section>
+        </Card>
       </div>
     </div>
   );

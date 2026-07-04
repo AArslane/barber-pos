@@ -6,6 +6,38 @@ export const PAYMENT_LABELS: Record<PaymentMethod, string> = {
   other: "Autre",
 };
 
+export type ShopSettings = {
+  payment_methods: Record<PaymentMethod, { enabled: boolean; label: string }>;
+  security: {
+    require_pin: boolean;
+    admin_session_minutes: number;
+  };
+};
+
+export const DEFAULT_SHOP_SETTINGS: ShopSettings = {
+  payment_methods: {
+    cash: { enabled: true, label: "Espèces" },
+    card: { enabled: true, label: "Carte" },
+    other: { enabled: true, label: "Autre" },
+  },
+  security: {
+    require_pin: false,
+    admin_session_minutes: 15,
+  },
+};
+
+// Fusionne les settings stockés (partiels) avec les défauts, colonne par colonne.
+export function withShopSettingsDefaults(stored: Partial<ShopSettings> | null | undefined): ShopSettings {
+  return {
+    payment_methods: {
+      cash: { ...DEFAULT_SHOP_SETTINGS.payment_methods.cash, ...stored?.payment_methods?.cash },
+      card: { ...DEFAULT_SHOP_SETTINGS.payment_methods.card, ...stored?.payment_methods?.card },
+      other: { ...DEFAULT_SHOP_SETTINGS.payment_methods.other, ...stored?.payment_methods?.other },
+    },
+    security: { ...DEFAULT_SHOP_SETTINGS.security, ...stored?.security },
+  };
+}
+
 export type Barber = {
   id: string;
   shop_id: string;

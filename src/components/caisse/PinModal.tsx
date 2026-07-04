@@ -3,6 +3,9 @@
 import { useEffect, useState } from "react";
 import { compare } from "bcryptjs";
 import type { Barber } from "@/lib/types";
+import { Card } from "@/components/ui/Card";
+import { Modal } from "@/components/ui/Modal";
+import { cn } from "@/lib/cn";
 
 const PIN_LENGTH = 6;
 const MAX_ATTEMPTS = 3;
@@ -73,25 +76,26 @@ export function PinModal({
   const secondsLeft = locked ? Math.ceil((lockedUntil - now) / 1000) : 0;
 
   return (
-    <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-6">
-      <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-6 w-full max-w-xs">
+    <Modal onClose={onCancel} maxWidth="max-w-xs">
+      <Card className="p-6">
         <p className="text-center font-semibold mb-1">{barber.display_name}</p>
-        <p className="text-center text-sm text-zinc-400 mb-4">
+        <p className="text-center text-sm text-muted mb-4">
           {locked ? `Trop d'essais, réessayez dans ${secondsLeft}s` : "Code PIN"}
         </p>
         <div
-          className={`flex justify-center gap-2 mb-6 ${shake ? "animate-shake" : ""}`}
+          className={cn("flex justify-center gap-2 mb-6", shake && "animate-shake")}
         >
           {Array.from({ length: PIN_LENGTH }, (_, i) => (
             <span
               key={i}
-              className={`w-4 h-4 rounded-full border ${
+              className={cn(
+                "w-4 h-4 rounded-full border",
                 i < entered.length
-                  ? "bg-indigo-500 border-indigo-500"
+                  ? "bg-gold-500 border-gold-500"
                   : shake
-                    ? "border-red-500"
-                    : "border-zinc-600"
-              }`}
+                    ? "border-danger"
+                    : "border-border-strong",
+              )}
             />
           ))}
         </div>
@@ -101,33 +105,33 @@ export function PinModal({
               key={d}
               onClick={() => void press(d)}
               disabled={locked || checking}
-              className="h-14 rounded-xl bg-zinc-800 hover:bg-zinc-700 disabled:opacity-40 transition-colors duration-150 text-xl font-semibold"
+              className="h-14 rounded-xl bg-surface-2 hover:bg-border-strong/50 disabled:opacity-40 transition-colors duration-150 text-xl font-semibold"
             >
               {d}
             </button>
           ))}
           <button
             onClick={onCancel}
-            className="h-14 rounded-xl text-sm text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800/60 transition-colors duration-150"
+            className="h-14 rounded-xl text-sm text-muted hover:text-foreground hover:bg-surface-2 transition-colors duration-150"
           >
             Annuler
           </button>
           <button
             onClick={() => void press("0")}
             disabled={locked || checking}
-            className="h-14 rounded-xl bg-zinc-800 hover:bg-zinc-700 disabled:opacity-40 transition-colors duration-150 text-xl font-semibold"
+            className="h-14 rounded-xl bg-surface-2 hover:bg-border-strong/50 disabled:opacity-40 transition-colors duration-150 text-xl font-semibold"
           >
             0
           </button>
           <button
             onClick={() => setEntered("")}
             disabled={locked || checking}
-            className="h-14 rounded-xl text-sm text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800/60 disabled:opacity-40 transition-colors duration-150"
+            className="h-14 rounded-xl text-sm text-muted hover:text-foreground hover:bg-surface-2 disabled:opacity-40 transition-colors duration-150"
           >
             Effacer
           </button>
         </div>
-      </div>
-    </div>
+      </Card>
+    </Modal>
   );
 }

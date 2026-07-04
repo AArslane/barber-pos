@@ -1,16 +1,17 @@
 import { createClient } from "@/lib/supabase/client";
 import { db, type PendingSale } from "@/lib/db";
-import type { Barber, Service } from "@/lib/types";
+import { withShopSettingsDefaults, type Barber, type Service } from "@/lib/types";
 
 // Rafraîchit le catalogue local depuis Supabase (silencieux si offline).
 export async function refreshCatalog(): Promise<void> {
   const supabase = createClient();
-  const [barbersRes, servicesRes] = await Promise.all([
+  const [barbersRes, servicesRes, shopRes] = await Promise.all([
     supabase
       .from("barbers")
       .select("id, shop_id, display_name, color, pin_hash, active")
       .eq("active", true),
     supabase.from("services").select("*").eq("active", true),
+    supabase.from("shops").select("settings").single(),
   ]);
   if (barbersRes.error || servicesRes.error) return;
 
@@ -21,6 +22,12 @@ export async function refreshCatalog(): Promise<void> {
     await db.services.bulkPut(servicesRes.data as Service[]);
     const shopId = (barbersRes.data as Barber[])[0]?.shop_id;
     if (shopId) await db.meta.put({ key: "shop_id", value: shopId });
+    if (!shopRes.error && shopRes.data) {
+      await db.meta.put({
+        key: "shop_settings",
+        value: JSON.stringify(withShopSettingsDefaults(shopRes.data.settings)),
+      });
+    }
   });
 }
 

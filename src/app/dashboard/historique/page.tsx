@@ -2,7 +2,21 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
-import { formatEUR, PAYMENT_LABELS, type Barber, type PaymentMethod, type Sale, type SaleItem } from "@/lib/types";
+import {
+  formatEUR,
+  PAYMENT_LABELS,
+  type Barber,
+  type PaymentMethod,
+  type Sale,
+  type SaleItem,
+} from "@/lib/types";
+import { Badge } from "@/components/ui/Badge";
+import { Button } from "@/components/ui/Button";
+import { Card } from "@/components/ui/Card";
+import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
+import { EmptyState } from "@/components/ui/EmptyState";
+import { Field, Input, Select } from "@/components/ui/fields";
+import { Skeleton } from "@/components/ui/Skeleton";
 
 type SaleWithItems = Sale & { sale_items: SaleItem[] };
 
@@ -18,10 +32,11 @@ export default function HistoriquePage() {
   const [barberId, setBarberId] = useState("");
   const [method, setMethod] = useState("");
   const [loading, setLoading] = useState(true);
+  const [toRefund, setToRefund] = useState<SaleWithItems | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
-    const supabase = createClient();
+    const supabase = createClient("owner");
     const fromDate = new Date(from + "T00:00:00");
     const toDate = new Date(to + "T23:59:59.999");
 
@@ -46,87 +61,89 @@ export default function HistoriquePage() {
   }, [load]);
 
   useEffect(() => {
-    void createClient()
+    void createClient("owner")
       .from("barbers")
       .select("*")
       .then(({ data }: { data: Barber[] | null }) => setBarbers(data ?? []));
   }, []);
 
-  async function refund(sale: SaleWithItems) {
-    if (!window.confirm(`Rembourser le ticket de ${formatEUR(Number(sale.total))} ?`)) return;
-    const { error } = await createClient()
+  async function confirmRefund() {
+    if (!toRefund) return;
+    const { error } = await createClient("owner")
       .from("sales")
       .update({ status: "refunded" })
-      .eq("id", sale.id);
+      .eq("id", toRefund.id);
+    setToRefund(null);
     if (!error) void load();
   }
 
   const barberName = (id: string) =>
     barbers.find((b) => b.id === id)?.display_name ?? "?";
 
-  const inputCls =
-    "rounded-lg bg-zinc-800 border border-zinc-700 px-3 py-2 text-sm outline-none focus:border-indigo-500";
-
   return (
     <div className="space-y-4">
       <h1 className="text-xl font-bold">Historique</h1>
 
       <div className="flex flex-wrap gap-3 items-end">
-        <label className="text-sm text-zinc-400">
-          Du
-          <input type="date" value={from} onChange={(e) => setFrom(e.target.value)} className={`${inputCls} block mt-1`} />
-        </label>
-        <label className="text-sm text-zinc-400">
-          Au
-          <input type="date" value={to} onChange={(e) => setTo(e.target.value)} className={`${inputCls} block mt-1`} />
-        </label>
-        <label className="text-sm text-zinc-400">
-          Coiffeur
-          <select value={barberId} onChange={(e) => setBarberId(e.target.value)} className={`${inputCls} block mt-1`}>
+        <Field label="Du">
+          <Input type="date" value={from} onChange={(e) => setFrom(e.target.value)} />
+        </Field>
+        <Field label="Au">
+          <Input type="date" value={to} onChange={(e) => setTo(e.target.value)} />
+        </Field>
+        <Field label="Coiffeur">
+          <Select value={barberId} onChange={(e) => setBarberId(e.target.value)}>
             <option value="">Tous</option>
             {barbers.map((b) => (
-              <option key={b.id} value={b.id}>{b.display_name}</option>
+              <option key={b.id} value={b.id}>
+                {b.display_name}
+              </option>
             ))}
-          </select>
-        </label>
-        <label className="text-sm text-zinc-400">
-          Paiement
-          <select value={method} onChange={(e) => setMethod(e.target.value)} className={`${inputCls} block mt-1`}>
+          </Select>
+        </Field>
+        <Field label="Paiement">
+          <Select value={method} onChange={(e) => setMethod(e.target.value)}>
             <option value="">Tous</option>
             {Object.entries(PAYMENT_LABELS).map(([k, v]) => (
-              <option key={k} value={k}>{v}</option>
+              <option key={k} value={k}>
+                {v}
+              </option>
             ))}
-          </select>
-        </label>
+          </Select>
+        </Field>
       </div>
 
       {loading ? (
-        <p className="text-zinc-500">Chargement…</p>
+        <div className="space-y-2">
+          {[1, 2, 3].map((i) => (
+            <Skeleton key={i} className="h-20 w-full rounded-xl" />
+          ))}
+        </div>
       ) : sales.length === 0 ? (
-        <p className="text-zinc-500">Aucun ticket sur cette période.</p>
+        <EmptyState title="Aucun ticket sur cette période." />
       ) : (
         <div className="space-y-2">
           {sales.map((sale) => (
-            <div
+            <Card
               key={sale.id}
-              className={`bg-zinc-900 border border-zinc-800 rounded-xl p-4 ${
-                sale.status === "refunded" ? "opacity-50" : ""
-              }`}
+              inset
+              className={`p-4 ${sale.status === "refunded" ? "opacity-50" : ""}`}
             >
               <div className="flex items-center justify-between gap-4">
                 <div>
                   <p className="font-semibold">
                     {formatEUR(Number(sale.total))}
-                    <span className="ml-2 text-sm font-normal text-zinc-400">
-                      {PAYMENT_LABELS[sale.payment_method as PaymentMethod]} · {barberName(sale.barber_id)}
+                    <span className="ml-2 text-sm font-normal text-muted">
+                      {PAYMENT_LABELS[sale.payment_method as PaymentMethod]} ·{" "}
+                      {barberName(sale.barber_id)}
                     </span>
                     {sale.status === "refunded" && (
-                      <span className="ml-2 text-xs text-red-400 border border-red-400/40 rounded px-1.5 py-0.5">
+                      <Badge tone="danger" className="ml-2">
                         Remboursé
-                      </span>
+                      </Badge>
                     )}
                   </p>
-                  <p className="text-sm text-zinc-500">
+                  <p className="text-sm text-muted">
                     {new Date(sale.created_at).toLocaleString("fr-FR", {
                       dateStyle: "short",
                       timeStyle: "short",
@@ -138,18 +155,33 @@ export default function HistoriquePage() {
                   </p>
                 </div>
                 {sale.status === "completed" && (
-                  <button
-                    onClick={() => refund(sale)}
-                    className="text-sm text-zinc-400 hover:text-red-400 transition-colors duration-150 shrink-0"
+                  <Button
+                    variant="ghost"
+                    className="text-danger hover:text-danger shrink-0"
+                    onClick={() => setToRefund(sale)}
                   >
                     Rembourser
-                  </button>
+                  </Button>
                 )}
               </div>
-            </div>
+            </Card>
           ))}
         </div>
       )}
+
+      <ConfirmDialog
+        open={!!toRefund}
+        title="Rembourser ce ticket ?"
+        message={
+          toRefund
+            ? `Rembourser le ticket de ${formatEUR(Number(toRefund.total))} ?`
+            : undefined
+        }
+        confirmLabel="Rembourser"
+        danger
+        onConfirm={() => void confirmRefund()}
+        onCancel={() => setToRefund(null)}
+      />
     </div>
   );
 }

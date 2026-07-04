@@ -6,9 +6,9 @@ import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { Field, Input } from "@/components/ui/fields";
-import { ScissorsIcon } from "@/components/icons";
+import { LockIcon } from "@/components/icons";
 
-export default function LoginPage() {
+export default function OwnerLoginPage() {
   const router = useRouter();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -19,8 +19,7 @@ export default function LoginPage() {
     e.preventDefault();
     setLoading(true);
     setError(null);
-    const supabase = createClient();
-    const { error } = await supabase.auth.signInWithPassword({
+    const { error } = await createClient("owner").auth.signInWithPassword({
       email,
       password,
     });
@@ -29,7 +28,7 @@ export default function LoginPage() {
       setLoading(false);
       return;
     }
-    router.replace("/caisse");
+    router.replace("/dashboard");
     router.refresh();
   }
 
@@ -39,19 +38,21 @@ export default function LoginPage() {
         <form onSubmit={handleSubmit} className="space-y-5">
           <div className="flex flex-col items-center gap-3">
             <span className="flex h-12 w-12 items-center justify-center rounded-full border border-gold-400/40 bg-gold-500/10">
-              <ScissorsIcon className="h-5 w-5 text-gold-400" />
+              <LockIcon className="h-5 w-5 text-gold-400" />
             </span>
-            <h1 className="font-display text-3xl tracking-widest">
-              BARBER <span className="text-gold-400">POS</span>
+            <h1 className="font-display text-2xl tracking-widest">
+              ESPACE <span className="text-gold-400">PROPRIÉTAIRE</span>
             </h1>
-            <p className="text-sm text-muted">Connexion du salon</p>
+            <p className="text-sm text-muted text-center">
+              Session séparée de la caisse — la caisse reste ouverte pendant votre visite.
+            </p>
           </div>
           <Field label="Email">
             <Input
               type="email"
               required
               autoComplete="email"
-              placeholder="salon@exemple.fr"
+              placeholder="vous@exemple.fr"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
             />

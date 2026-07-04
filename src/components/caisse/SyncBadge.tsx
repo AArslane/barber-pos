@@ -3,6 +3,7 @@
 import { useSyncExternalStore } from "react";
 import { useLiveQuery } from "dexie-react-hooks";
 import { db } from "@/lib/db";
+import { Badge, StatusDot } from "@/components/ui/Badge";
 
 function subscribeOnline(callback: () => void) {
   window.addEventListener("online", callback);
@@ -18,29 +19,29 @@ export function SyncBadge() {
   const online = useSyncExternalStore(
     subscribeOnline,
     () => navigator.onLine,
-    () => true
+    () => true,
   );
 
   if (!online) {
     return (
-      <span className="flex items-center gap-2 text-xs text-zinc-400">
-        <span className="w-2 h-2 rounded-full bg-zinc-500" />
+      <Badge tone="neutral">
+        <StatusDot tone="neutral" />
         Hors ligne{pending > 0 && ` · ${pending} en attente`}
-      </span>
+      </Badge>
     );
   }
   if (pending > 0) {
     return (
-      <span className="flex items-center gap-2 text-xs text-amber-400">
-        <span className="w-2 h-2 rounded-full bg-amber-400" />
+      <Badge tone="info">
+        <StatusDot tone="info" />
         {pending} vente{pending > 1 ? "s" : ""} en attente
-      </span>
+      </Badge>
     );
   }
   return (
-    <span className="flex items-center gap-2 text-xs text-emerald-400">
-      <span className="w-2 h-2 rounded-full bg-emerald-400" />
+    <Badge tone="success">
+      <StatusDot tone="success" />
       Synchronisé
-    </span>
+    </Badge>
   );
 }

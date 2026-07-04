@@ -3,13 +3,16 @@
 import { useCallback, useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { formatEUR, PAYMENT_LABELS, type Barber, type PaymentMethod, type Sale } from "@/lib/types";
+import { Card } from "@/components/ui/Card";
+import { StatusDot } from "@/components/ui/Badge";
+import { EmptyState } from "@/components/ui/EmptyState";
 
 export default function TodayPage() {
   const [sales, setSales] = useState<Sale[]>([]);
   const [barbers, setBarbers] = useState<Barber[]>([]);
 
   const load = useCallback(async () => {
-    const supabase = createClient();
+    const supabase = createClient("owner");
     const startOfDay = new Date();
     startOfDay.setHours(0, 0, 0, 0);
 
@@ -28,13 +31,13 @@ export default function TodayPage() {
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- fetch async, setState après await (faux positif)
     void load();
-    const supabase = createClient();
+    const supabase = createClient("owner");
     const channel = supabase
       .channel("sales-today")
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "sales" },
-        () => void load()
+        () => void load(),
       )
       .subscribe();
     return () => {
@@ -75,40 +78,37 @@ export default function TodayPage() {
         <StatCard label="Panier moyen" value={formatEUR(avg)} />
       </div>
 
-      <section className="bg-zinc-900 border border-zinc-800 rounded-2xl p-5">
-        <h2 className="text-sm uppercase tracking-wide text-zinc-500 mb-3">
+      <Card>
+        <h2 className="text-sm uppercase tracking-wide text-muted mb-3">
           Par mode de paiement
         </h2>
         <div className="grid grid-cols-3 gap-4">
           {byMethod.map(({ method, amount }) => (
             <div key={method}>
-              <p className="text-sm text-zinc-400">{PAYMENT_LABELS[method]}</p>
+              <p className="text-sm text-muted">{PAYMENT_LABELS[method]}</p>
               <p className="text-lg font-semibold">{formatEUR(amount)}</p>
             </div>
           ))}
         </div>
-      </section>
+      </Card>
 
-      <section className="bg-zinc-900 border border-zinc-800 rounded-2xl p-5">
-        <h2 className="text-sm uppercase tracking-wide text-zinc-500 mb-3">
+      <Card>
+        <h2 className="text-sm uppercase tracking-wide text-muted mb-3">
           Par coiffeur
         </h2>
         {byBarber.length === 0 ? (
-          <p className="text-zinc-500 text-sm">Aucune vente pour l&apos;instant.</p>
+          <EmptyState title="Aucune vente pour l'instant." />
         ) : (
           <div className="space-y-2">
             {byBarber.map(({ barber, count, amount }) => (
               <div
                 key={barber.id}
-                className="flex items-center justify-between py-2 border-b border-zinc-800 last:border-0"
+                className="flex items-center justify-between py-2 border-b border-border last:border-0"
               >
                 <span className="flex items-center gap-3">
-                  <span
-                    className="w-3 h-3 rounded-full"
-                    style={{ backgroundColor: barber.color }}
-                  />
+                  <StatusDot style={{ backgroundColor: barber.color }} />
                   <span className="font-medium">{barber.display_name}</span>
-                  <span className="text-sm text-zinc-500">
+                  <span className="text-sm text-muted">
                     {count} vente{count > 1 ? "s" : ""}
                   </span>
                 </span>
@@ -117,16 +117,16 @@ export default function TodayPage() {
             ))}
           </div>
         )}
-      </section>
+      </Card>
     </div>
   );
 }
 
 function StatCard({ label, value }: { label: string; value: string }) {
   return (
-    <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-5">
-      <p className="text-sm text-zinc-400">{label}</p>
-      <p className="text-2xl font-bold mt-1">{value}</p>
-    </div>
+    <Card>
+      <p className="text-sm text-muted">{label}</p>
+      <p className="text-3xl font-bold mt-1">{value}</p>
+    </Card>
   );
 }

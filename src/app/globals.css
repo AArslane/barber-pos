@@ -1,46 +1,60 @@
 @import "tailwindcss";
 
-/* App sombre uniquement (caisse tablette). color-scheme: dark est indispensable :
-   sans lui, les contrôles natifs (date, select, number, color) rendent leurs
-   internes en mode clair → texte noir sur champs sombres. */
-:root {
-  color-scheme: dark;
-  --background: #09090b; /* zinc-950 */
-  --foreground: #f4f4f5; /* zinc-100 */
+/* @theme NON-inline : émet les vars sur :root → utilisables en CSS brut et style inline (charts) */
+@theme {
+  --color-background: #0C0A09;
+  --color-surface: #1C1917;
+  --color-surface-2: #292524;
+  --color-border: #292524;
+  --color-border-strong: #44403C;
+  --color-foreground: #FAFAF9;
+  --color-muted: #A8A29E;
+  --color-faint: #78716C;
+  --color-gold-400: #DFB569;
+  --color-gold-500: #D4A24E;
+  --color-gold-600: #B08238;
+  --color-gold-ink: #1C1204;
+  --color-success: #34D399;
+  --color-success-strong: #10B981;
+  --color-danger: #F87171;
+  --color-danger-strong: #DC2626;
+  --color-info: #38BDF8;
 }
 
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
+  --font-display: var(--font-bebas), var(--font-geist-sans);
+}
+
+/* color-scheme: dark — contrôles natifs (date, select…) cohérents avec le thème sombre */
+:root {
+  color-scheme: dark;
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
+  background: var(--color-background);
+  color: var(--color-foreground);
   font-family: var(--font-geist-sans), system-ui, sans-serif;
+  font-variant-numeric: tabular-nums;
   -webkit-font-smoothing: antialiased;
 }
 
-/* Tailwind v4 met cursor: default sur les boutons — une caisse est 100% cliquable */
 button:not(:disabled),
 [role="button"]:not(:disabled) {
   cursor: pointer;
 }
 
-/* Focus clavier visible partout, sans doubler l'outline navigateur */
 :focus-visible {
-  outline: 2px solid #818cf8; /* indigo-400 */
+  outline: 2px solid var(--color-gold-400);
   outline-offset: 2px;
 }
 
 ::selection {
-  background: #4f46e5;
-  color: #fff;
+  background: var(--color-gold-500);
+  color: var(--color-gold-ink);
 }
 
-/* Secousse du PIN erroné */
 @keyframes shake {
   0%, 100% { transform: translateX(0); }
   25% { transform: translateX(-6px); }
