@@ -6,6 +6,8 @@ import { formatEUR, type Barber, type Sale, type SaleItem } from "@/lib/types";
 import { Card } from "@/components/ui/Card";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { StatusDot } from "@/components/ui/Badge";
+import { Skeleton } from "@/components/ui/Skeleton";
+import { useToast } from "@/components/ui/Toast";
 import { cn } from "@/lib/cn";
 
 type SaleWithItems = Sale & { sale_items: SaleItem[] };
@@ -22,6 +24,8 @@ export default function StatsPage() {
   const [range, setRange] = useState<Range>(30);
   const [sales, setSales] = useState<SaleWithItems[]>([]);
   const [barbers, setBarbers] = useState<Barber[]>([]);
+  const [loading, setLoading] = useState(true);
+  const toast = useToast();
 
   const load = useCallback(async () => {
     const supabase = createClient("owner");
@@ -37,9 +41,13 @@ export default function StatsPage() {
         .gte("created_at", start.toISOString()),
       supabase.from("barbers").select("*"),
     ]);
+    if (salesRes.error || barbersRes.error) {
+      toast.error("Impossible de charger les statistiques.");
+    }
     setSales((salesRes.data as SaleWithItems[]) ?? []);
     setBarbers((barbersRes.data as Barber[]) ?? []);
-  }, [range]);
+    setLoading(false);
+  }, [range, toast]);
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- fetch async, setState après await (faux positif)
@@ -90,6 +98,19 @@ export default function StatsPage() {
   const maxBarber = Math.max(...byBarber.map((r) => r.amount), 1);
 
   const total = sales.reduce((sum, s) => sum + Number(s.total), 0);
+
+  if (loading) {
+    return (
+      <div className="space-y-6">
+        <h1 className="text-xl font-bold">Stats</h1>
+        <Skeleton className="h-56 w-full rounded-2xl" />
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <Skeleton className="h-64 w-full rounded-2xl" />
+          <Skeleton className="h-64 w-full rounded-2xl" />
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">

@@ -17,6 +17,7 @@ import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { Field, Input, Select } from "@/components/ui/fields";
 import { Skeleton } from "@/components/ui/Skeleton";
+import { useToast } from "@/components/ui/Toast";
 
 type SaleWithItems = Sale & { sale_items: SaleItem[] };
 
@@ -33,6 +34,7 @@ export default function HistoriquePage() {
   const [method, setMethod] = useState("");
   const [loading, setLoading] = useState(true);
   const [toRefund, setToRefund] = useState<SaleWithItems | null>(null);
+  const toast = useToast();
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -50,10 +52,11 @@ export default function HistoriquePage() {
     if (barberId) query = query.eq("barber_id", barberId);
     if (method) query = query.eq("payment_method", method);
 
-    const { data } = await query;
+    const { data, error } = await query;
+    if (error) toast.error("Impossible de charger l'historique.");
     setSales((data as SaleWithItems[]) ?? []);
     setLoading(false);
-  }, [from, to, barberId, method]);
+  }, [from, to, barberId, method, toast]);
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- fetch async, setState après await (faux positif)
@@ -75,6 +78,7 @@ export default function HistoriquePage() {
       .eq("id", toRefund.id);
     setToRefund(null);
     if (!error) void load();
+    else toast.error("Le remboursement a échoué.");
   }
 
   const barberName = (id: string) =>
