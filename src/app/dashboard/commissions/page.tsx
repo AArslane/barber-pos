@@ -9,6 +9,7 @@ import { EmptyState } from "@/components/ui/EmptyState";
 import { Field, Input } from "@/components/ui/fields";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { useToast } from "@/components/ui/Toast";
+import { useActiveShopId } from "@/components/dashboard/ActiveShopContext";
 
 function toDateInput(d: Date): string {
   return d.toISOString().slice(0, 10);
@@ -20,6 +21,7 @@ function monthStart(offset = 0): Date {
 }
 
 export default function CommissionsPage() {
+  const shopId = useActiveShopId();
   const [from, setFrom] = useState(() => toDateInput(monthStart()));
   const [to, setTo] = useState(() => toDateInput(new Date()));
   const [barbers, setBarbers] = useState<Barber[]>([]);
@@ -34,11 +36,12 @@ export default function CommissionsPage() {
     const toDate = new Date(to + "T23:59:59.999");
 
     const [barbersRes, privateRes, salesRes] = await Promise.all([
-      supabase.from("barbers").select("*"),
-      supabase.from("barber_private").select("*"),
+      supabase.from("barbers").select("*").eq("shop_id", shopId),
+      supabase.from("barber_private").select("*").eq("shop_id", shopId),
       supabase
         .from("sales")
         .select("*")
+        .eq("shop_id", shopId)
         .eq("status", "completed")
         .gte("created_at", fromDate.toISOString())
         .lte("created_at", toDate.toISOString()),
@@ -50,7 +53,7 @@ export default function CommissionsPage() {
     setCommissions((privateRes.data as BarberPrivate[]) ?? []);
     setSales((salesRes.data as Sale[]) ?? []);
     setLoading(false);
-  }, [from, to, toast]);
+  }, [shopId, from, to, toast]);
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- fetch async, setState après await (faux positif)

@@ -8,6 +8,7 @@ import { EmptyState } from "@/components/ui/EmptyState";
 import { StatusDot } from "@/components/ui/Badge";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { useToast } from "@/components/ui/Toast";
+import { useActiveShopId } from "@/components/dashboard/ActiveShopContext";
 import { cn } from "@/lib/cn";
 
 type SaleWithItems = Sale & { sale_items: SaleItem[] };
@@ -21,6 +22,7 @@ function dayKey(d: Date): string {
 }
 
 export default function StatsPage() {
+  const shopId = useActiveShopId();
   const [range, setRange] = useState<Range>(30);
   const [sales, setSales] = useState<SaleWithItems[]>([]);
   const [barbers, setBarbers] = useState<Barber[]>([]);
@@ -37,9 +39,10 @@ export default function StatsPage() {
       supabase
         .from("sales")
         .select("*, sale_items(*)")
+        .eq("shop_id", shopId)
         .eq("status", "completed")
         .gte("created_at", start.toISOString()),
-      supabase.from("barbers").select("*"),
+      supabase.from("barbers").select("*").eq("shop_id", shopId),
     ]);
     if (salesRes.error || barbersRes.error) {
       toast.error("Impossible de charger les statistiques.");
@@ -47,7 +50,7 @@ export default function StatsPage() {
     setSales((salesRes.data as SaleWithItems[]) ?? []);
     setBarbers((barbersRes.data as Barber[]) ?? []);
     setLoading(false);
-  }, [range, toast]);
+  }, [shopId, range, toast]);
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- fetch async, setState après await (faux positif)

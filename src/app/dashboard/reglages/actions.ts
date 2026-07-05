@@ -2,24 +2,21 @@
 
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { withShopSettingsDefaults, type ShopSettings } from "@/lib/types";
+import { getShop } from "@/lib/shop";
+import { getSubscription, type SubscriptionStatus } from "@/lib/subscription";
+import { isStripeConfigured } from "@/lib/stripe";
+import type { ShopSettings } from "@/lib/types";
 
+// Réglages de la boutique active (sélecteur multi-boutiques du dashboard),
+// pas d'un shop arbitraire du owner.
 export async function getShopSettings(): Promise<{ shopId: string; name: string; currency: string; settings: ShopSettings } | null> {
-  const supabase = await createClient("owner");
-  const { data, error } = await supabase
-    .from("members")
-    .select("shop_id, shops(name, currency, settings)")
-    .limit(1)
-    .single();
-  if (error || !data) return null;
-  const shop = Array.isArray(data.shops) ? data.shops[0] : data.shops;
-  const s = shop as { name: string; currency: string; settings: Partial<ShopSettings> } | null;
-  if (!s) return null;
+  const shop = await getShop();
+  if (!shop) return null;
   return {
-    shopId: data.shop_id as string,
-    name: s.name,
-    currency: s.currency,
-    settings: withShopSettingsDefaults(s.settings),
+    shopId: shop.id,
+    name: shop.name,
+    currency: shop.currency,
+    settings: shop.settings,
   };
 }
 
@@ -33,6 +30,13 @@ export async function updateShopSettings(shopId: string, settings: ShopSettings)
   const supabase = await createClient("owner");
   const { error } = await supabase.from("shops").update({ settings }).eq("id", shopId);
   if (error) throw new Error(error.message);
+}
+
+export async function getSubscriptionInfo(
+  shopId: string
+): Promise<{ stripeConfigured: boolean; subscription: SubscriptionStatus | null }> {
+  if (!isStripeConfigured()) return { stripeConfigured: false, subscription: null };
+  return { stripeConfigured: true, subscription: await getSubscription(shopId) };
 }
 
 export type ConnectedDevice = { userId: string; email: string; createdAt: string };

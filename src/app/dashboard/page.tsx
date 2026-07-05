@@ -8,8 +8,10 @@ import { StatusDot } from "@/components/ui/Badge";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { useToast } from "@/components/ui/Toast";
+import { useActiveShopId } from "@/components/dashboard/ActiveShopContext";
 
 export default function TodayPage() {
+  const shopId = useActiveShopId();
   const [sales, setSales] = useState<Sale[]>([]);
   const [barbers, setBarbers] = useState<Barber[]>([]);
   const [loading, setLoading] = useState(true);
@@ -24,9 +26,10 @@ export default function TodayPage() {
       supabase
         .from("sales")
         .select("*")
+        .eq("shop_id", shopId)
         .gte("created_at", startOfDay.toISOString())
         .order("created_at", { ascending: false }),
-      supabase.from("barbers").select("*"),
+      supabase.from("barbers").select("*").eq("shop_id", shopId),
     ]);
     if (salesRes.error || barbersRes.error) {
       toast.error("Impossible de charger les données du jour.");
@@ -34,7 +37,7 @@ export default function TodayPage() {
     if (salesRes.data) setSales(salesRes.data as Sale[]);
     if (barbersRes.data) setBarbers(barbersRes.data as Barber[]);
     setLoading(false);
-  }, [toast]);
+  }, [shopId, toast]);
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- fetch async, setState après await (faux positif)
@@ -44,14 +47,14 @@ export default function TodayPage() {
       .channel("sales-today")
       .on(
         "postgres_changes",
-        { event: "*", schema: "public", table: "sales" },
+        { event: "*", schema: "public", table: "sales", filter: `shop_id=eq.${shopId}` },
         () => void load(),
       )
       .subscribe();
     return () => {
       void supabase.removeChannel(channel);
     };
-  }, [load]);
+  }, [load, shopId]);
 
   const completed = sales.filter((s) => s.status === "completed");
   const total = completed.reduce((sum, s) => sum + Number(s.total), 0);
