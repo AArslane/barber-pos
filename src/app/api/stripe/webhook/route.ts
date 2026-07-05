@@ -36,7 +36,9 @@ export async function POST(request: NextRequest) {
         stripe_customer_id: typeof sub.customer === "string" ? sub.customer : sub.customer.id,
         stripe_subscription_id: sub.id,
         status: sub.status,
-        current_period_end: new Date(sub.items.data[0].current_period_end * 1000).toISOString(),
+        current_period_end: sub.items.data[0]?.current_period_end
+          ? new Date(sub.items.data[0].current_period_end * 1000).toISOString()
+          : null,
         updated_at: new Date().toISOString(),
       },
       { onConflict: "shop_id" }

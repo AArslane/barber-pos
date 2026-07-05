@@ -1,14 +1,10 @@
 import { redirect } from "next/navigation";
-import { headers } from "next/headers";
 import { getShop } from "@/lib/shop";
 import { createClient } from "@/lib/supabase/server";
-import { isShopGated } from "@/lib/subscription";
-import { isStripeConfigured } from "@/lib/stripe";
 import { DashboardNav } from "@/components/dashboard/Nav";
 import { LogoutButton } from "@/components/LogoutButton";
 import { OwnerSessionGuard } from "@/components/dashboard/OwnerSessionGuard";
 import { ActiveShopProvider } from "@/components/dashboard/ActiveShopContext";
-import { SubscriptionGate } from "@/components/dashboard/SubscriptionGate";
 
 export default async function DashboardLayout({
   children,
@@ -25,13 +21,6 @@ export default async function DashboardLayout({
     data: { user: caisseUser },
   } = await caisse.auth.getUser();
   const onTablet = caisseUser?.app_metadata.role === "device";
-
-  // La caisse ne doit jamais être bloquée par la facturation : ce gating ne
-  // s'applique qu'au dashboard, jamais si Stripe n'est pas configuré, et
-  // laisse toujours accès aux réglages pour pouvoir s'abonner.
-  const pathname = (await headers()).get("x-pathname") ?? "";
-  const isReglages = pathname.startsWith("/dashboard/reglages");
-  const gated = !isReglages && isStripeConfigured() && (await isShopGated(shop.id));
 
   return (
     <ActiveShopProvider shopId={shop.id}>
@@ -59,7 +48,7 @@ export default async function DashboardLayout({
           <DashboardNav shops={shop.shops} activeShopId={shop.id} />
         </div>
         <main className="flex-1 p-4 sm:p-6 max-w-6xl w-full mx-auto">
-          {gated ? <SubscriptionGate /> : children}
+          {children}
         </main>
       </div>
     </ActiveShopProvider>

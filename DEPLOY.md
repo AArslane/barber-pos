@@ -69,4 +69,4 @@ Doit se terminer sans erreur (Turbopack, Next 16). Voir `RAPPORT_GLM.md` pour le
 
 ## 7. Configuration Vercel spécifique
 
-Aucun réglage Vercel additionnel n'est nécessaire : le service worker est servi par une route Next (`src/app/sw.js/route.ts`) qui pose elle-même l'en-tête `Service-Worker-Allowed: /` et `Cache-Control: no-cache` — pas besoin de règle `vercel.json` pour ça. `next.config.ts` n'a pas de configuration spécifique à ajouter pour le moment.
+Le service worker est servi par une route Next (`src/app/sw.js/route.ts`) qui pose elle-même l'en-tête `Service-Worker-Allowed: /` et `Cache-Control: no-cache` — pas besoin de règle `vercel.json` pour ça. `next.config.ts` n'a pas de configuration spécifique à ajouter pour le moment. En revanche, laisser activé **« Automatically expose System Environment Variables »** (Vercel → Project → Settings → Environment Variables) : `src/app/sw.js/route.ts` utilise `VERCEL_GIT_COMMIT_SHA` pour versionner le cache du service worker, et sans cette variable chaque instance serverless peut générer un nom de cache différent.

@@ -1,3 +1,4 @@
+import { cache } from "react";
 import { cookies } from "next/headers";
 import { createClient } from "@/lib/supabase/server";
 import { withShopSettingsDefaults, type ShopSettings } from "@/lib/types";
@@ -24,7 +25,7 @@ export async function listMemberShops(): Promise<MemberShop[]> {
 
 // Boutique active (sélecteur du dashboard) : cookie si présent et valide,
 // sinon la première boutique du owner.
-export async function getShop() {
+export const getShop = cache(async function getShop() {
   const shops = await listMemberShops();
   if (shops.length === 0) return null;
 
@@ -52,4 +53,4 @@ export async function getShop() {
     adminSessionMinutes: settings.security.admin_session_minutes,
     shops,
   };
-}
+});
