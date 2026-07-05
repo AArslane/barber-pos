@@ -1,6 +1,5 @@
 "use server";
 
-import { randomUUID } from "crypto";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { withShopSettingsDefaults, type ShopSettings } from "@/lib/types";
@@ -56,15 +55,4 @@ export async function listConnectedDevices(shopId: string): Promise<ConnectedDev
     }
   }
   return devices;
-}
-
-// Un compte tablette est technique (pas de mot de passe choisi par un humain) : pas d'API
-// GoTrue pour révoquer une session par user id, donc "déconnecter" = régénérer les
-// identifiants (l'ancien mot de passe devient invalide, à ressaisir sur la tablette).
-export async function resetDeviceCredentials(userId: string): Promise<{ password: string }> {
-  const admin = createAdminClient();
-  const password = randomUUID();
-  const { error } = await admin.auth.admin.updateUserById(userId, { password });
-  if (error) throw new Error(error.message);
-  return { password };
 }

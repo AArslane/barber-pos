@@ -19,12 +19,20 @@ export default function OwnerLoginPage() {
     e.preventDefault();
     setLoading(true);
     setError(null);
-    const { error } = await createClient("owner").auth.signInWithPassword({
+    const supabase = createClient("owner");
+    const { data, error } = await supabase.auth.signInWithPassword({
       email,
       password,
     });
     if (error) {
       setError("Email ou mot de passe incorrect.");
+      setLoading(false);
+      return;
+    }
+    // L'espace propriétaire refuse les comptes tablette (role device).
+    if (data.user?.app_metadata.role === "device") {
+      await supabase.auth.signOut();
+      setError("Ce compte est réservé à la caisse. Connectez-vous avec votre compte propriétaire.");
       setLoading(false);
       return;
     }

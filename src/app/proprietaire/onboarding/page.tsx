@@ -6,9 +6,9 @@ import {
   bootstrapShop,
   addBarber,
   seedServices,
-  createDeviceAccount,
   type ServiceTemplateItem,
 } from "./actions";
+import { generatePairingCode, type PairingCode } from "@/lib/pairing";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { Field, Input, Select } from "@/components/ui/fields";
@@ -43,7 +43,7 @@ export default function OnboardingPage() {
 
   const [servicesChoice, setServicesChoice] = useState<"template" | "empty">("template");
 
-  const [device, setDevice] = useState<{ email: string; password: string } | null>(null);
+  const [pairing, setPairing] = useState<PairingCode | null>(null);
 
   function run(fn: () => Promise<void>) {
     setError(null);
@@ -88,11 +88,11 @@ export default function OnboardingPage() {
     });
   }
 
-  function generateDevice() {
+  function generateCode() {
     if (!shopId) return;
     run(async () => {
-      const creds = await createDeviceAccount(shopId);
-      setDevice(creds);
+      const code = await generatePairingCode(shopId);
+      setPairing(code);
       setStep(5);
     });
   }
@@ -255,17 +255,21 @@ export default function OnboardingPage() {
         {step === 4 && (
           <div className="space-y-4">
             <p className="text-sm text-muted">
-              Génère les identifiants du compte tablette. Ils s&apos;affichent une seule fois :
-              notez-les et saisissez-les sur la tablette du salon.
+              Générez un code d&apos;appairage pour connecter la tablette du salon : sur la
+              tablette, ouvrez Barber POS et saisissez ce code. Valable 10 minutes,
+              régénérable à tout moment depuis Réglages → Sécurité.
             </p>
             <Button
               variant="primary"
               size="lg"
-              onClick={generateDevice}
+              onClick={generateCode}
               disabled={pending}
               className="w-full"
             >
-              {pending ? "Génération…" : "Générer les identifiants"}
+              {pending ? "Génération…" : "Générer le code d'appairage"}
+            </Button>
+            <Button variant="ghost" onClick={() => setStep(5)} disabled={pending} className="w-full">
+              Plus tard
             </Button>
           </div>
         )}
@@ -278,17 +282,17 @@ export default function OnboardingPage() {
               </span>
               <p className="font-semibold">Votre salon est prêt</p>
             </div>
-            {device && (
+            {pairing && (
               <Card inset className="space-y-2 border border-gold-400/40 p-4 text-sm">
                 <p className="text-muted">
-                  Identifiants de la tablette — à saisir maintenant, ils ne seront plus jamais
-                  affichés :
+                  Code d&apos;appairage de la tablette — valable 10 minutes :
                 </p>
-                <p>
-                  Email : <span className="font-mono text-gold-400">{device.email}</span>
+                <p className="text-center font-mono text-3xl tracking-[0.3em] text-gold-400">
+                  {pairing.code}
                 </p>
-                <p>
-                  Mot de passe : <span className="font-mono text-gold-400">{device.password}</span>
+                <p className="text-muted">
+                  Sur la tablette : ouvrez Barber POS et saisissez ce code. Un nouveau code peut
+                  être généré depuis Réglages → Sécurité.
                 </p>
               </Card>
             )}

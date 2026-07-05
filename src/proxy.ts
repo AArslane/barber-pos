@@ -40,10 +40,17 @@ export async function proxy(request: NextRequest) {
   // Rafraîchit les deux sessions (maintient les cookies à jour) et récupère
   // l'utilisateur de chaque scope — la caisse et l'admin sont des sessions
   // indépendantes sur la même tablette.
-  const [caisseUser, ownerUser] = await Promise.all([
+  const [caisseSession, ownerSession] = await Promise.all([
     getScopedUser(request, response, "caisse"),
     getScopedUser(request, response, "owner"),
   ]);
+
+  // Chaque scope n'accepte que son type de compte (app_metadata.role est posé
+  // côté serveur à la création, présent dans le JWT, infalsifiable) : la caisse
+  // exige un compte tablette, l'espace propriétaire refuse les comptes tablette.
+  // Un compte du mauvais type est traité comme non connecté.
+  const caisseUser = caisseSession?.app_metadata.role === "device" ? caisseSession : null;
+  const ownerUser = ownerSession && ownerSession.app_metadata.role !== "device" ? ownerSession : null;
 
   const isOwnerArea = pathname.startsWith("/dashboard");
   const isCaisse = pathname.startsWith("/caisse");

@@ -4,12 +4,13 @@ import { useEffect, useState } from "react";
 import {
   updateShopSettings,
   listConnectedDevices,
-  resetDeviceCredentials,
   type ConnectedDevice,
 } from "@/app/dashboard/reglages/actions";
+import { generatePairingCode, disconnectDevice, type PairingCode } from "@/lib/pairing";
 import type { ShopSettings } from "@/lib/types";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
+import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { Input } from "@/components/ui/fields";
 import { Toggle } from "@/components/ui/Toggle";
 import { useToast } from "@/components/ui/Toast";
@@ -25,7 +26,9 @@ export function SecuriteTab({
 }) {
   const [draft, setDraft] = useState(settings);
   const [devices, setDevices] = useState<ConnectedDevice[]>([]);
-  const [newPassword, setNewPassword] = useState<{ email: string; password: string } | null>(null);
+  const [pairing, setPairing] = useState<PairingCode | null>(null);
+  const [generating, setGenerating] = useState(false);
+  const [toDisconnect, setToDisconnect] = useState<ConnectedDevice | null>(null);
   const toast = useToast();
 
   // Resynchronise l'état local si le parent recharge les réglages (retour de navigation).
@@ -52,12 +55,27 @@ export function SecuriteTab({
     }
   }
 
-  async function reset(device: ConnectedDevice) {
+  async function generate() {
+    setGenerating(true);
     try {
-      const { password } = await resetDeviceCredentials(device.userId);
-      setNewPassword({ email: device.email, password });
+      setPairing(await generatePairingCode(shopId));
     } catch {
-      toast.error("Échec de la régénération des identifiants.");
+      toast.error("Échec de la génération du code.");
+    } finally {
+      setGenerating(false);
+    }
+  }
+
+  async function confirmDisconnect() {
+    if (!toDisconnect) return;
+    const device = toDisconnect;
+    setToDisconnect(null);
+    try {
+      await disconnectDevice(shopId, device.userId);
+      setDevices((prev) => prev.filter((d) => d.userId !== device.userId));
+      toast.success("Tablette déconnectée");
+    } catch {
+      toast.error("Échec de la déconnexion de la tablette.");
     }
   }
 
@@ -108,7 +126,22 @@ export function SecuriteTab({
       </Card>
 
       <Card className="space-y-4">
-        <h3 className="text-sm uppercase tracking-wide text-faint">Tablettes connectées</h3>
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <h3 className="text-sm uppercase tracking-wide text-faint">Tablettes connectées</h3>
+          <Button onClick={generate} disabled={generating}>
+            {generating ? "Génération…" : "Connecter une tablette"}
+          </Button>
+        </div>
+        {pairing && (
+          <div className="space-y-1 rounded-xl border border-gold-400/40 bg-gold-500/5 p-3">
+            <p className="text-sm text-muted">
+              Sur la tablette : ouvrez Barber POS et saisissez ce code — valable 10 minutes :
+            </p>
+            <p className="text-center font-mono text-3xl tracking-[0.3em] text-gold-400">
+              {pairing.code}
+            </p>
+          </div>
+        )}
         {devices.length === 0 && <p className="text-sm text-muted">Aucune tablette configurée.</p>}
         {devices.map((d) => (
           <div
@@ -116,21 +149,22 @@ export function SecuriteTab({
             className="flex flex-wrap items-center gap-3 rounded-xl border border-border bg-background/50 p-3"
           >
             <span className="font-mono text-sm text-foreground">{d.email}</span>
-            <Button onClick={() => reset(d)} className="ml-auto">
+            <Button onClick={() => setToDisconnect(d)} className="ml-auto">
               Déconnecter
             </Button>
           </div>
         ))}
-        {newPassword && (
-          <div className="space-y-1 rounded-xl border border-gold-400/40 bg-gold-500/5 p-3">
-            <p className="text-sm">
-              Nouveaux identifiants pour <strong>{newPassword.email}</strong> — à ressaisir sur la
-              tablette, affichés une seule fois :
-            </p>
-            <p className="font-mono text-lg text-gold-400">{newPassword.password}</p>
-          </div>
-        )}
       </Card>
+
+      <ConfirmDialog
+        open={toDisconnect !== null}
+        title="Déconnecter cette tablette ?"
+        message="La caisse de cette tablette sera déconnectée définitivement. Pour la reconnecter, générez un nouveau code d'appairage."
+        confirmLabel="Déconnecter"
+        danger
+        onConfirm={confirmDisconnect}
+        onCancel={() => setToDisconnect(null)}
+      />
     </div>
   );
 }
