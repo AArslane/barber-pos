@@ -20,10 +20,11 @@ export function PrestationsTab({ shopId }: { shopId: string }) {
     const { data } = await createClient("owner")
       .from("services")
       .select("*")
+      .eq("shop_id", shopId)
       .order("category")
       .order("sort_order");
     setServices((data as Service[]) ?? []);
-  }, []);
+  }, [shopId]);
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- fetch async, setState après await (faux positif)

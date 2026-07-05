@@ -2,6 +2,21 @@ import { createClient } from "@/lib/supabase/client";
 import { db, type PendingSale } from "@/lib/db";
 import { withShopSettingsDefaults, type Barber, type Service } from "@/lib/types";
 
+// Codes Postgres (via PostgREST) qui signalent un rejet définitif du serveur
+// (contrainte violée, RLS refusée...) plutôt qu'un problème réseau : inutile
+// de retenter indéfiniment, la vente est mise de côté dans `rejected_sales`.
+const PERMANENT_ERROR_CODES = new Set([
+  "23502", // not_null_violation
+  "23503", // foreign_key_violation
+  "23505", // unique_violation
+  "23514", // check_violation
+  "42501", // insufficient_privilege (RLS)
+]);
+
+function isPermanentRejection(error: { code?: string } | null): boolean {
+  return !!error?.code && PERMANENT_ERROR_CODES.has(error.code);
+}
+
 // Rafraîchit le catalogue local depuis Supabase (silencieux si offline).
 export async function refreshCatalog(): Promise<void> {
   const supabase = createClient();
@@ -32,6 +47,9 @@ export async function refreshCatalog(): Promise<void> {
 }
 
 // Pousse les ventes en attente. Upsert par UUID : rejouable sans doublon.
+// Une erreur réseau interrompt la boucle (on retentera au prochain passage) ;
+// un rejet définitif du serveur ne bloque pas les ventes suivantes : la vente
+// fautive est déplacée vers `rejected_sales`.
 export async function syncPending(): Promise<number> {
   const pending = await db.pending_sales.orderBy("created_at").toArray();
   if (pending.length === 0) return 0;
@@ -44,17 +62,36 @@ export async function syncPending(): Promise<number> {
     const { error: saleError } = await supabase
       .from("sales")
       .upsert(saleRow, { onConflict: "id" });
-    if (saleError) break; // offline ou erreur : on retentera
+    if (saleError) {
+      if (isPermanentRejection(saleError)) {
+        await rejectSale(sale, saleError.message);
+        continue;
+      }
+      break; // offline ou erreur réseau : on retentera
+    }
 
     const { error: itemsError } = await supabase
       .from("sale_items")
       .upsert(items, { onConflict: "id" });
-    if (itemsError) break;
+    if (itemsError) {
+      if (isPermanentRejection(itemsError)) {
+        await rejectSale(sale, itemsError.message);
+        continue;
+      }
+      break;
+    }
 
     await db.pending_sales.delete(sale.id);
     synced++;
   }
   return synced;
+}
+
+async function rejectSale(sale: PendingSale, reason: string): Promise<void> {
+  await db.transaction("rw", db.pending_sales, db.rejected_sales, async () => {
+    await db.rejected_sales.put({ ...sale, rejected_reason: reason, rejected_at: new Date().toISOString() });
+    await db.pending_sales.delete(sale.id);
+  });
 }
 
 // Enregistre la vente localement puis tente la sync en arrière-plan.

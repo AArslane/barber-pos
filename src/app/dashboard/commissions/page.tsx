@@ -7,6 +7,9 @@ import { StatusDot } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { Field, Input } from "@/components/ui/fields";
+import { Skeleton } from "@/components/ui/Skeleton";
+import { useToast } from "@/components/ui/Toast";
+import { useActiveShopId } from "@/components/dashboard/ActiveShopContext";
 
 function toDateInput(d: Date): string {
   return d.toISOString().slice(0, 10);
@@ -18,11 +21,14 @@ function monthStart(offset = 0): Date {
 }
 
 export default function CommissionsPage() {
+  const shopId = useActiveShopId();
   const [from, setFrom] = useState(() => toDateInput(monthStart()));
   const [to, setTo] = useState(() => toDateInput(new Date()));
   const [barbers, setBarbers] = useState<Barber[]>([]);
   const [commissions, setCommissions] = useState<BarberPrivate[]>([]);
   const [sales, setSales] = useState<Sale[]>([]);
+  const [loading, setLoading] = useState(true);
+  const toast = useToast();
 
   const load = useCallback(async () => {
     const supabase = createClient("owner");
@@ -30,19 +36,24 @@ export default function CommissionsPage() {
     const toDate = new Date(to + "T23:59:59.999");
 
     const [barbersRes, privateRes, salesRes] = await Promise.all([
-      supabase.from("barbers").select("*"),
-      supabase.from("barber_private").select("*"),
+      supabase.from("barbers").select("*").eq("shop_id", shopId),
+      supabase.from("barber_private").select("*").eq("shop_id", shopId),
       supabase
         .from("sales")
         .select("*")
+        .eq("shop_id", shopId)
         .eq("status", "completed")
         .gte("created_at", fromDate.toISOString())
         .lte("created_at", toDate.toISOString()),
     ]);
+    if (barbersRes.error || privateRes.error || salesRes.error) {
+      toast.error("Impossible de charger les commissions.");
+    }
     setBarbers((barbersRes.data as Barber[]) ?? []);
     setCommissions((privateRes.data as BarberPrivate[]) ?? []);
     setSales((salesRes.data as Sale[]) ?? []);
-  }, [from, to]);
+    setLoading(false);
+  }, [shopId, from, to, toast]);
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- fetch async, setState après await (faux positif)
@@ -84,6 +95,16 @@ export default function CommissionsPage() {
 
   const totalCA = rows.reduce((sum, r) => sum + r.ca, 0);
   const totalCommission = rows.reduce((sum, r) => sum + r.commission, 0);
+
+  if (loading) {
+    return (
+      <div className="space-y-4">
+        <h1 className="text-xl font-bold">Commissions</h1>
+        <Skeleton className="h-10 w-full" />
+        <Skeleton className="h-48 w-full rounded-2xl" />
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-4">

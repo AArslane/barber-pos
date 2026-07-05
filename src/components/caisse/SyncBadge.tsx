@@ -16,12 +16,21 @@ function subscribeOnline(callback: () => void) {
 
 export function SyncBadge() {
   const pending = useLiveQuery(() => db.pending_sales.count(), [], 0);
+  const rejected = useLiveQuery(() => db.rejected_sales.count(), [], 0);
   const online = useSyncExternalStore(
     subscribeOnline,
     () => navigator.onLine,
     () => true,
   );
 
+  if (rejected > 0) {
+    return (
+      <Badge tone="danger">
+        <StatusDot tone="danger" />
+        {rejected} vente{rejected > 1 ? "s" : ""} rejetée{rejected > 1 ? "s" : ""}
+      </Badge>
+    );
+  }
   if (!online) {
     return (
       <Badge tone="neutral">

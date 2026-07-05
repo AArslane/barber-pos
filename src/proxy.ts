@@ -34,8 +34,12 @@ async function getScopedUser(
 }
 
 export async function proxy(request: NextRequest) {
-  const response = NextResponse.next({ request });
   const { pathname } = request.nextUrl;
+  // Transmis aux Server Components via headers() : utilisé par le layout
+  // dashboard pour ne pas gater /dashboard/reglages (l'owner doit toujours
+  // pouvoir y accéder pour gérer son abonnement).
+  request.headers.set("x-pathname", pathname);
+  const response = NextResponse.next({ request });
 
   // Rafraîchit les deux sessions (maintient les cookies à jour) et récupère
   // l'utilisateur de chaque scope — la caisse et l'admin sont des sessions
@@ -59,6 +63,7 @@ export async function proxy(request: NextRequest) {
   // même si aucun shop n'existe encore.
   const isOwnerSubPage = pathname.startsWith("/proprietaire/");
   const isCaisseLogin = pathname === "/login";
+  const isInscription = pathname === "/inscription";
 
   if ((isOwnerArea || isOwnerSubPage) && !ownerUser) {
     const url = request.nextUrl.clone();
@@ -78,7 +83,7 @@ export async function proxy(request: NextRequest) {
     return NextResponse.redirect(url);
   }
 
-  if (isOwnerLogin && ownerUser) {
+  if ((isOwnerLogin || isInscription) && ownerUser) {
     const url = request.nextUrl.clone();
     url.pathname = "/dashboard";
     return NextResponse.redirect(url);

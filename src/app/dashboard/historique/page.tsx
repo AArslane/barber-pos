@@ -17,6 +17,8 @@ import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { Field, Input, Select } from "@/components/ui/fields";
 import { Skeleton } from "@/components/ui/Skeleton";
+import { useToast } from "@/components/ui/Toast";
+import { useActiveShopId } from "@/components/dashboard/ActiveShopContext";
 
 type SaleWithItems = Sale & { sale_items: SaleItem[] };
 
@@ -25,6 +27,7 @@ function toDateInput(d: Date): string {
 }
 
 export default function HistoriquePage() {
+  const shopId = useActiveShopId();
   const [sales, setSales] = useState<SaleWithItems[]>([]);
   const [barbers, setBarbers] = useState<Barber[]>([]);
   const [from, setFrom] = useState(() => toDateInput(new Date()));
@@ -33,6 +36,7 @@ export default function HistoriquePage() {
   const [method, setMethod] = useState("");
   const [loading, setLoading] = useState(true);
   const [toRefund, setToRefund] = useState<SaleWithItems | null>(null);
+  const toast = useToast();
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -43,6 +47,7 @@ export default function HistoriquePage() {
     let query = supabase
       .from("sales")
       .select("*, sale_items(*)")
+      .eq("shop_id", shopId)
       .gte("created_at", fromDate.toISOString())
       .lte("created_at", toDate.toISOString())
       .order("created_at", { ascending: false })
@@ -50,10 +55,11 @@ export default function HistoriquePage() {
     if (barberId) query = query.eq("barber_id", barberId);
     if (method) query = query.eq("payment_method", method);
 
-    const { data } = await query;
+    const { data, error } = await query;
+    if (error) toast.error("Impossible de charger l'historique.");
     setSales((data as SaleWithItems[]) ?? []);
     setLoading(false);
-  }, [from, to, barberId, method]);
+  }, [shopId, from, to, barberId, method, toast]);
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- fetch async, setState après await (faux positif)
@@ -64,17 +70,20 @@ export default function HistoriquePage() {
     void createClient("owner")
       .from("barbers")
       .select("*")
+      .eq("shop_id", shopId)
       .then(({ data }: { data: Barber[] | null }) => setBarbers(data ?? []));
-  }, []);
+  }, [shopId]);
 
   async function confirmRefund() {
     if (!toRefund) return;
     const { error } = await createClient("owner")
       .from("sales")
       .update({ status: "refunded" })
-      .eq("id", toRefund.id);
+      .eq("id", toRefund.id)
+      .eq("shop_id", shopId);
     setToRefund(null);
     if (!error) void load();
+    else toast.error("Le remboursement a échoué.");
   }
 
   const barberName = (id: string) =>

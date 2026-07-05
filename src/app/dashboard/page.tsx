@@ -6,10 +6,16 @@ import { formatEUR, PAYMENT_LABELS, type Barber, type PaymentMethod, type Sale }
 import { Card } from "@/components/ui/Card";
 import { StatusDot } from "@/components/ui/Badge";
 import { EmptyState } from "@/components/ui/EmptyState";
+import { Skeleton } from "@/components/ui/Skeleton";
+import { useToast } from "@/components/ui/Toast";
+import { useActiveShopId } from "@/components/dashboard/ActiveShopContext";
 
 export default function TodayPage() {
+  const shopId = useActiveShopId();
   const [sales, setSales] = useState<Sale[]>([]);
   const [barbers, setBarbers] = useState<Barber[]>([]);
+  const [loading, setLoading] = useState(true);
+  const toast = useToast();
 
   const load = useCallback(async () => {
     const supabase = createClient("owner");
@@ -20,13 +26,18 @@ export default function TodayPage() {
       supabase
         .from("sales")
         .select("*")
+        .eq("shop_id", shopId)
         .gte("created_at", startOfDay.toISOString())
         .order("created_at", { ascending: false }),
-      supabase.from("barbers").select("*"),
+      supabase.from("barbers").select("*").eq("shop_id", shopId),
     ]);
+    if (salesRes.error || barbersRes.error) {
+      toast.error("Impossible de charger les données du jour.");
+    }
     if (salesRes.data) setSales(salesRes.data as Sale[]);
     if (barbersRes.data) setBarbers(barbersRes.data as Barber[]);
-  }, []);
+    setLoading(false);
+  }, [shopId, toast]);
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- fetch async, setState après await (faux positif)
@@ -36,14 +47,14 @@ export default function TodayPage() {
       .channel("sales-today")
       .on(
         "postgres_changes",
-        { event: "*", schema: "public", table: "sales" },
+        { event: "*", schema: "public", table: "sales", filter: `shop_id=eq.${shopId}` },
         () => void load(),
       )
       .subscribe();
     return () => {
       void supabase.removeChannel(channel);
     };
-  }, [load]);
+  }, [load, shopId]);
 
   const completed = sales.filter((s) => s.status === "completed");
   const total = completed.reduce((sum, s) => sum + Number(s.total), 0);
@@ -67,6 +78,21 @@ export default function TodayPage() {
     })
     .filter((r) => r.count > 0)
     .sort((a, b) => b.amount - a.amount);
+
+  if (loading) {
+    return (
+      <div className="space-y-6">
+        <h1 className="text-xl font-bold">Aujourd&apos;hui</h1>
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          {[1, 2, 3].map((i) => (
+            <Skeleton key={i} className="h-20 w-full" />
+          ))}
+        </div>
+        <Skeleton className="h-32 w-full rounded-2xl" />
+        <Skeleton className="h-40 w-full rounded-2xl" />
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">

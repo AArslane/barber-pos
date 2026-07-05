@@ -18,8 +18,8 @@ export function EquipeTab({ shopId }: { shopId: string }) {
   const load = useCallback(async () => {
     const supabase = createClient("owner");
     const [barbersRes, privateRes] = await Promise.all([
-      supabase.from("barbers").select("*").order("created_at"),
-      supabase.from("barber_private").select("*"),
+      supabase.from("barbers").select("*").eq("shop_id", shopId).order("created_at"),
+      supabase.from("barber_private").select("*").eq("shop_id", shopId),
     ]);
     setBarbers((barbersRes.data as Barber[]) ?? []);
     setCommissions(
@@ -27,7 +27,7 @@ export function EquipeTab({ shopId }: { shopId: string }) {
         ((privateRes.data as BarberPrivate[]) ?? []).map((c) => [c.barber_id, Number(c.commission_pct)])
       )
     );
-  }, []);
+  }, [shopId]);
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- fetch async, setState après await (faux positif)

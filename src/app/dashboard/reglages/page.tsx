@@ -10,8 +10,9 @@ import { PrestationsTab } from "@/components/reglages/PrestationsTab";
 import { PaiementsTab } from "@/components/reglages/PaiementsTab";
 import { SecuriteTab } from "@/components/reglages/SecuriteTab";
 import { BoutiqueTab } from "@/components/reglages/BoutiqueTab";
+import { AbonnementTab } from "@/components/reglages/AbonnementTab";
 
-const TABS = ["Équipe", "Prestations", "Paiements", "Sécurité", "Boutique"] as const;
+const TABS = ["Équipe", "Prestations", "Paiements", "Sécurité", "Boutique", "Abonnement"] as const;
 type Tab = (typeof TABS)[number];
 
 export default function ReglagesPage() {
@@ -70,6 +71,7 @@ export default function ReglagesPage() {
           onSaved={(name, currency) => setShop({ ...shop, name, currency })}
         />
       )}
+      {tab === "Abonnement" && <AbonnementTab shopId={shop.shopId} />}
     </div>
   );
 }
