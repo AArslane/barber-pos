@@ -26,15 +26,25 @@ export async function POST(request: NextRequest) {
   const origin = request.nextUrl.origin;
 
   const stripe = getStripe();
-  const session = await stripe.checkout.sessions.create({
-    mode: "subscription",
-    line_items: [{ price: process.env.STRIPE_PRICE_ID, quantity: 1 }],
-    customer_email: user.email,
-    client_reference_id: shop.id,
-    subscription_data: { metadata: { shop_id: shop.id } },
-    success_url: `${origin}/dashboard/reglages?abonnement=succes`,
-    cancel_url: `${origin}/dashboard/reglages?abonnement=annule`,
-  });
-
-  return NextResponse.json({ url: session.url });
+  try {
+    const session = await stripe.checkout.sessions.create({
+      mode: "subscription",
+      payment_method_types: ["card"],
+      line_items: [{ price: process.env.STRIPE_PRICE_ID, quantity: 1 }],
+      customer_email: user.email,
+      client_reference_id: shop.id,
+      subscription_data: { metadata: { shop_id: shop.id } },
+      success_url: `${origin}/dashboard/reglages?abonnement=succes`,
+      cancel_url: `${origin}/dashboard/reglages?abonnement=annule`,
+    });
+    return NextResponse.json({ url: session.url });
+  } catch (e) {
+    // Erreur Stripe (prix invalide, compte non activé…) : le message est loggé
+    // côté serveur, le client reçoit un JSON générique au lieu d'un 500 vide.
+    console.error("Stripe checkout:", e);
+    return NextResponse.json(
+      { error: "Impossible de créer la session de paiement." },
+      { status: 502 }
+    );
+  }
 }

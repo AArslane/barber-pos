@@ -14,13 +14,15 @@ export async function listMemberShops(): Promise<MemberShop[]> {
   const supabase = await createClient("owner");
   const { data, error } = await supabase.from("members").select("shop_id, shops(name)");
   if (error || !data) return [];
-  return data
+  const shops = data
     .map((m) => {
       const shop = Array.isArray(m.shops) ? m.shops[0] : m.shops;
       const s = shop as { name: string } | null;
       return s ? { id: m.shop_id as string, name: s.name } : null;
     })
     .filter((s): s is MemberShop => s !== null);
+  // Un user peut avoir plusieurs lignes `members` sur le même shop : dédup par id.
+  return [...new Map(shops.map((s) => [s.id, s])).values()];
 }
 
 // Boutique active (sélecteur du dashboard) : cookie si présent et valide,
