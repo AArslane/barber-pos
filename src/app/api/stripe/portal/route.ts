@@ -30,10 +30,19 @@ export async function POST(request: NextRequest) {
   }
 
   const stripe = getStripe();
-  const session = await stripe.billingPortal.sessions.create({
-    customer: sub.stripeCustomerId,
-    return_url: `${request.nextUrl.origin}/dashboard/reglages`,
-  });
-
-  return NextResponse.json({ url: session.url });
+  try {
+    const session = await stripe.billingPortal.sessions.create({
+      customer: sub.stripeCustomerId,
+      return_url: `${request.nextUrl.origin}/dashboard/reglages`,
+    });
+    return NextResponse.json({ url: session.url });
+  } catch (e) {
+    // Erreur Stripe (portail non configuré, customer supprimé…) : loggée
+    // côté serveur, le client reçoit un JSON au lieu d'un 500 vide.
+    console.error("Stripe portal:", e);
+    return NextResponse.json(
+      { error: "Impossible d'ouvrir le portail de facturation." },
+      { status: 502 }
+    );
+  }
 }
