@@ -43,3 +43,11 @@ next-env.d.ts
 
 .vercel
 .env*
+
+# docs internes + outillage local
+BUSINESS_PLAN.md
+GLM_PROMPT.md
+.vscode/
+.claude/
+.agents/
+skills-lock.json
