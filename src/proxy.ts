@@ -56,6 +56,14 @@ export async function proxy(request: NextRequest) {
   const caisseUser = caisseSession?.app_metadata.role === "device" ? caisseSession : null;
   const ownerUser = ownerSession && ownerSession.app_metadata.role !== "device" ? ownerSession : null;
 
+  // La racine est la landing marketing publique — sauf pour une tablette
+  // connectée (session device), qui garde son comportement historique.
+  if (pathname === "/" && caisseUser) {
+    const url = request.nextUrl.clone();
+    url.pathname = "/caisse";
+    return NextResponse.redirect(url);
+  }
+
   const isOwnerArea = pathname.startsWith("/dashboard");
   const isCaisse = pathname.startsWith("/caisse");
   const isOwnerLogin = pathname === "/proprietaire";
@@ -93,5 +101,5 @@ export async function proxy(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/((?!_next/static|_next/image|favicon.ico|manifest|icons|sw.js|.*\\.(?:svg|png|jpg|jpeg|webp)$).*)"],
+  matcher: ["/((?!_next/static|_next/image|favicon.ico|manifest|icons|sw.js|sitemap.xml|robots.txt|opengraph-image|.*\\.(?:svg|png|jpg|jpeg|webp)$).*)"],
 };

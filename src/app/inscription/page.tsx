@@ -1,9 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
+import { track } from "@/lib/analytics";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { Field, Input } from "@/components/ui/fields";
@@ -16,11 +17,13 @@ export default function InscriptionPage() {
   const [error, setError] = useState<string | null>(null);
   const [checkEmail, setCheckEmail] = useState(false);
   const [loading, setLoading] = useState(false);
+  const signupStarted = useRef(false);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setLoading(true);
     setError(null);
+    track("signup_submitted");
     const supabase = createClient("owner");
     const { data, error } = await supabase.auth.signUp({ email, password });
     if (error) {
@@ -78,6 +81,11 @@ export default function InscriptionPage() {
               autoComplete="email"
               placeholder="vous@exemple.fr"
               value={email}
+              onFocus={() => {
+                if (signupStarted.current) return;
+                signupStarted.current = true;
+                track("signup_started");
+              }}
               onChange={(e) => setEmail(e.target.value)}
             />
           </Field>

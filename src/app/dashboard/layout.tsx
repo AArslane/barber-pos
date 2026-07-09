@@ -1,10 +1,13 @@
 import { redirect } from "next/navigation";
 import { getShop } from "@/lib/shop";
 import { createClient } from "@/lib/supabase/server";
+import { getSubscription, getTrialDaysLeft, isSubscriptionActive } from "@/lib/subscription";
+import { isStripeConfigured } from "@/lib/stripe";
 import { DashboardNav } from "@/components/dashboard/Nav";
 import { LogoutButton } from "@/components/LogoutButton";
 import { OwnerSessionGuard } from "@/components/dashboard/OwnerSessionGuard";
 import { ActiveShopProvider } from "@/components/dashboard/ActiveShopContext";
+import { TrialBanner } from "@/components/dashboard/TrialBanner";
 
 export default async function DashboardLayout({
   children,
@@ -21,6 +24,14 @@ export default async function DashboardLayout({
     data: { user: caisseUser },
   } = await caisse.auth.getUser();
   const onTablet = caisseUser?.app_metadata.role === "device";
+
+  // Bandeau essai : seulement si le gating existe (Stripe configuré), qu'aucun
+  // abonnement n'est actif et que l'essai court encore.
+  let trialDaysLeft: number | null = null;
+  if (isStripeConfigured() && !isSubscriptionActive(await getSubscription(shop.id))) {
+    const daysLeft = getTrialDaysLeft(shop.trialEndsAt);
+    if (daysLeft !== null && daysLeft > 0) trialDaysLeft = daysLeft;
+  }
 
   return (
     <ActiveShopProvider shopId={shop.id}>
@@ -47,6 +58,7 @@ export default async function DashboardLayout({
         <div className="border-b border-border px-4 sm:px-6 py-2">
           <DashboardNav shops={shop.shops} activeShopId={shop.id} />
         </div>
+        {trialDaysLeft !== null && <TrialBanner daysLeft={trialDaysLeft} />}
         <main className="flex-1 p-4 sm:p-6 max-w-6xl w-full mx-auto">
           {children}
         </main>

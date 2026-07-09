@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { useToast } from "@/components/ui/Toast";
+import { track } from "@/lib/analytics";
 
 const STATUS_LABELS: Record<string, string> = {
   active: "Actif",
@@ -28,6 +29,7 @@ export function AbonnementTab({ shopId }: { shopId: string }) {
 
   async function startCheckout() {
     setLoading(true);
+    track("checkout_started", { source: "reglages" });
     try {
       const res = await fetch("/api/stripe/checkout", { method: "POST" });
       const data = await res.json();

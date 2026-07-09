@@ -9,6 +9,7 @@ import {
   type ServiceTemplateItem,
 } from "./actions";
 import { generatePairingCode, type PairingCode } from "@/lib/pairing";
+import { track } from "@/lib/analytics";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { Field, Input, Select } from "@/components/ui/fields";
@@ -301,6 +302,7 @@ export default function OnboardingPage() {
               size="lg"
               className="w-full"
               onClick={() => {
+                track("onboarding_completed");
                 router.replace("/dashboard");
                 router.refresh();
               }}

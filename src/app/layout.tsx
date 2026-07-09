@@ -1,7 +1,8 @@
 import type { Metadata, Viewport } from "next";
 import { Bebas_Neue, Geist, Geist_Mono } from "next/font/google";
-import { SwRegister } from "@/components/SwRegister";
 import { ToastProvider } from "@/components/ui/Toast";
+import { PostHogInit } from "@/components/PostHogInit";
+import { BRAND_NAME, SITE_URL } from "@/lib/brand";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -21,7 +22,8 @@ const bebasNeue = Bebas_Neue({
 });
 
 export const metadata: Metadata = {
-  title: "Barber POS",
+  metadataBase: new URL(SITE_URL),
+  title: BRAND_NAME,
   description: "Caisse tablette pour barbershops",
 };
 
@@ -43,7 +45,7 @@ export default function RootLayout({
       className={`${geistSans.variable} ${geistMono.variable} ${bebasNeue.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col bg-background text-foreground">
-        <SwRegister />
+        <PostHogInit />
         <ToastProvider>{children}</ToastProvider>
       </body>
     </html>

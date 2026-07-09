@@ -19,5 +19,7 @@ export default async function DashboardTemplate({
   const isReglages = pathname.startsWith("/dashboard/reglages");
   const gated = !isReglages && isStripeConfigured() && (await isShopGated(shop.id));
 
-  return gated ? <SubscriptionGate /> : children;
+  // Un trial posé mais échu change le message du gate ("essai terminé" plutôt
+  // qu'"abonnement requis").
+  return gated ? <SubscriptionGate trialExpired={shop.trialEndsAt !== null} /> : children;
 }
