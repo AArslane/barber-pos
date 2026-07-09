@@ -14,11 +14,13 @@ type BadgeProps = {
   tone?: BadgeTone;
   children: React.ReactNode;
   className?: string;
+  title?: string;
 };
 
-export function Badge({ tone = "neutral", children, className }: BadgeProps) {
+export function Badge({ tone = "neutral", children, className, title }: BadgeProps) {
   return (
     <span
+      title={title}
       className={cn(
         "inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-xs font-medium",
         toneCls[tone],

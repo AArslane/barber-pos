@@ -17,6 +17,17 @@ function isPermanentRejection(error: { code?: string } | null): boolean {
   return !!error?.code && PERMANENT_ERROR_CODES.has(error.code);
 }
 
+// Dernière erreur de sync, persistée pour être affichée dans le badge caisse.
+// Effacée dès qu'une passe de sync se termine sans erreur.
+async function setSyncError(message: string | null): Promise<void> {
+  if (message === null) {
+    await db.meta.delete("last_sync_error");
+  } else {
+    console.error("[sync]", message);
+    await db.meta.put({ key: "last_sync_error", value: message });
+  }
+}
+
 // Rafraîchit le catalogue local depuis Supabase (silencieux si offline).
 export async function refreshCatalog(): Promise<void> {
   const supabase = createClient();
@@ -55,35 +66,49 @@ export async function syncPending(): Promise<number> {
   if (pending.length === 0) return 0;
 
   const supabase = createClient();
+
+  // Sans session caisse, PostgREST refusera tout : inutile d'essayer, et
+  // l'erreur serait cryptique. On la nomme clairement pour le badge.
+  const { data: sessionData } = await supabase.auth.getSession();
+  if (!sessionData.session) {
+    await setSyncError("Caisse non connectée (session expirée ou tablette non appairée)");
+    return 0;
+  }
+
   let synced = 0;
 
   for (const sale of pending) {
     const { items, ...saleRow } = sale;
+    // ignoreDuplicates (ON CONFLICT DO NOTHING) : rejouable sans doublon, et ne
+    // requiert que la policy INSERT — le rôle device n'a pas de policy UPDATE.
     const { error: saleError } = await supabase
       .from("sales")
-      .upsert(saleRow, { onConflict: "id" });
+      .upsert(saleRow, { onConflict: "id", ignoreDuplicates: true });
     if (saleError) {
       if (isPermanentRejection(saleError)) {
         await rejectSale(sale, saleError.message);
         continue;
       }
-      break; // offline ou erreur réseau : on retentera
+      await setSyncError(`${saleError.code ?? "réseau"} : ${saleError.message}`);
+      return synced; // offline ou erreur réseau : on retentera
     }
 
     const { error: itemsError } = await supabase
       .from("sale_items")
-      .upsert(items, { onConflict: "id" });
+      .upsert(items, { onConflict: "id", ignoreDuplicates: true });
     if (itemsError) {
       if (isPermanentRejection(itemsError)) {
         await rejectSale(sale, itemsError.message);
         continue;
       }
-      break;
+      await setSyncError(`${itemsError.code ?? "réseau"} : ${itemsError.message}`);
+      return synced;
     }
 
     await db.pending_sales.delete(sale.id);
     synced++;
   }
+  await setSyncError(null);
   return synced;
 }
 

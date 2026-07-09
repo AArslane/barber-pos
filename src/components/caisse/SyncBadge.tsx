@@ -17,6 +17,11 @@ function subscribeOnline(callback: () => void) {
 export function SyncBadge() {
   const pending = useLiveQuery(() => db.pending_sales.count(), [], 0);
   const rejected = useLiveQuery(() => db.rejected_sales.count(), [], 0);
+  const syncError = useLiveQuery(
+    async () => (await db.meta.get("last_sync_error"))?.value ?? null,
+    [],
+    null,
+  );
   const online = useSyncExternalStore(
     subscribeOnline,
     () => navigator.onLine,
@@ -41,9 +46,12 @@ export function SyncBadge() {
   }
   if (pending > 0) {
     return (
-      <Badge tone="info">
+      <Badge tone="info" title={syncError ?? undefined}>
         <StatusDot tone="info" />
         {pending} vente{pending > 1 ? "s" : ""} en attente
+        {syncError && (
+          <span className="text-xs opacity-75"> · {syncError}</span>
+        )}
       </Badge>
     );
   }
