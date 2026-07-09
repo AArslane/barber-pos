@@ -61,7 +61,8 @@ export default function OnboardingPage() {
     e.preventDefault();
     if (!shopName.trim()) return;
     run(async () => {
-      const id = await bootstrapShop(shopName.trim(), currency);
+      const { id, error } = await bootstrapShop(shopName.trim(), currency);
+      if (error || !id) throw new Error(error ?? "Impossible de créer le salon");
       setShopId(id);
       setStep(2);
     });
@@ -73,7 +74,13 @@ export default function OnboardingPage() {
       for (const [i, b] of barbers.entries()) {
         if (!b.name.trim()) continue;
         const pct = b.commission ? Number(b.commission) : 0;
-        await addBarber(shopId, b.name.trim(), BARBER_COLORS[i % BARBER_COLORS.length], pct);
+        const { error } = await addBarber(
+          shopId,
+          b.name.trim(),
+          BARBER_COLORS[i % BARBER_COLORS.length],
+          pct,
+        );
+        if (error) throw new Error(error);
       }
       setStep(3);
     });
@@ -83,7 +90,8 @@ export default function OnboardingPage() {
     if (!shopId) return;
     run(async () => {
       if (servicesChoice === "template") {
-        await seedServices(shopId, TEMPLATE_SERVICES);
+        const { error } = await seedServices(shopId, TEMPLATE_SERVICES);
+        if (error) throw new Error(error);
       }
       setStep(4);
     });
