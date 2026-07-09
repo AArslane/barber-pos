@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { Field, Input } from "@/components/ui/fields";
 import { ScissorsIcon } from "@/components/icons";
+import { cn } from "@/lib/cn";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -76,6 +77,32 @@ export default function LoginPage() {
             </p>
           </div>
 
+          <div className="grid grid-cols-2 gap-1 rounded-xl bg-background/50 p-1">
+            {(
+              [
+                { value: "pair", label: "Code d'appairage" },
+                { value: "email", label: "Identifiants" },
+              ] as const
+            ).map((m) => (
+              <button
+                key={m.value}
+                type="button"
+                onClick={() => {
+                  setMode(m.value);
+                  setError(null);
+                }}
+                className={cn(
+                  "rounded-lg px-3 py-2 text-sm font-medium transition-colors duration-150",
+                  mode === m.value
+                    ? "bg-gold-500/15 text-gold-400 border border-gold-400/40"
+                    : "text-muted hover:text-foreground",
+                )}
+              >
+                {m.label}
+              </button>
+            ))}
+          </div>
+
           {mode === "pair" ? (
             <form onSubmit={handlePair} className="space-y-5">
               <p className="text-sm text-muted text-center">
@@ -129,16 +156,6 @@ export default function LoginPage() {
             </form>
           )}
 
-          <button
-            type="button"
-            className="w-full text-center text-sm text-faint hover:text-foreground transition-colors duration-150"
-            onClick={() => {
-              setMode(mode === "pair" ? "email" : "pair");
-              setError(null);
-            }}
-          >
-            {mode === "pair" ? "Connexion par identifiants" : "Utiliser un code d'appairage"}
-          </button>
         </div>
       </Card>
     </main>
