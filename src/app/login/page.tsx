@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import { redeemPairingCode } from "@/lib/pairing";
 import { Button } from "@/components/ui/Button";
@@ -12,7 +13,7 @@ import { cn } from "@/lib/cn";
 
 export default function LoginPage() {
   const router = useRouter();
-  const [mode, setMode] = useState<"pair" | "email">("pair");
+  const [mode, setMode] = useState<"email" | "pair">("email");
   const [code, setCode] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -37,8 +38,12 @@ export default function LoginPage() {
     e.preventDefault();
     setLoading(true);
     setError(null);
-    const supabase = createClient();
-    const { data, error } = await supabase.auth.signInWithPassword({
+    // Un seul formulaire pour les deux types de compte : on authentifie sur le
+    // scope caisse pour lire le rôle, puis on bascule sur le scope owner si le
+    // compte n'est pas une tablette (les deux sessions cohabitent par cookies
+    // distincts, voir SESSION_COOKIE_NAMES).
+    const caisse = createClient();
+    const { data, error } = await caisse.auth.signInWithPassword({
       email,
       password,
     });
@@ -47,17 +52,25 @@ export default function LoginPage() {
       setLoading(false);
       return;
     }
-    // La caisse n'accepte que le compte tablette : un compte propriétaire ici
-    // donnerait à la tablette des droits owner (et ses ventes ne synchroniseraient pas).
-    if (data.user?.app_metadata.role !== "device") {
-      await supabase.auth.signOut();
-      setError(
-        "Ce compte n'est pas un compte tablette. Utilisez un code d'appairage (Réglages → Sécurité sur votre espace propriétaire)."
-      );
+    if (data.user?.app_metadata.role === "device") {
+      router.replace("/caisse");
+      router.refresh();
+      return;
+    }
+    // Compte propriétaire : libérer le scope caisse (local seulement, pas de
+    // révocation serveur) et ouvrir une vraie session sur le scope owner.
+    await caisse.auth.signOut({ scope: "local" });
+    const owner = createClient("owner");
+    const { error: ownerError } = await owner.auth.signInWithPassword({
+      email,
+      password,
+    });
+    if (ownerError) {
+      setError("Connexion impossible, réessayez.");
       setLoading(false);
       return;
     }
-    router.replace("/caisse");
+    router.replace("/dashboard");
     router.refresh();
   }
 
@@ -70,18 +83,18 @@ export default function LoginPage() {
               <ScissorsIcon className="h-5 w-5 text-gold-400" />
             </span>
             <h1 className="font-display text-3xl tracking-widest">
-              BARBER <span className="text-gold-400">POS</span>
+              SALON<span className="text-gold-400">FLOW</span>
             </h1>
             <p className="text-sm text-muted">
-              {mode === "pair" ? "Appairer la tablette" : "Connexion du salon"}
+              {mode === "pair" ? "Appairer la tablette du salon" : "Connexion à votre espace"}
             </p>
           </div>
 
           <div className="grid grid-cols-2 gap-1 rounded-xl bg-background/50 p-1">
             {(
               [
+                { value: "email", label: "Email & mot de passe" },
                 { value: "pair", label: "Code d'appairage" },
-                { value: "email", label: "Identifiants" },
               ] as const
             ).map((m) => (
               <button
@@ -134,7 +147,7 @@ export default function LoginPage() {
                   type="email"
                   required
                   autoComplete="email"
-                  placeholder="salon@exemple.fr"
+                  placeholder="vous@exemple.fr"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                 />
@@ -153,6 +166,12 @@ export default function LoginPage() {
               <Button type="submit" variant="primary" size="lg" disabled={loading} className="w-full">
                 {loading ? "Connexion…" : "Se connecter"}
               </Button>
+              <p className="text-center text-sm text-muted">
+                Pas encore de salon ?{" "}
+                <Link href="/inscription" className="text-gold-400 hover:underline">
+                  Créer un compte
+                </Link>
+              </p>
             </form>
           )}
 

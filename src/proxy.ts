@@ -66,32 +66,45 @@ export async function proxy(request: NextRequest) {
 
   const isOwnerArea = pathname.startsWith("/dashboard");
   const isCaisse = pathname.startsWith("/caisse");
-  const isOwnerLogin = pathname === "/proprietaire";
   // Sous-pages (ex. l'onboarding) : nécessitent une session owner authentifiée,
-  // même si aucun shop n'existe encore.
+  // même si aucun shop n'existe encore. /proprietaire lui-même redirige vers
+  // /login (page), la connexion est unifiée.
   const isOwnerSubPage = pathname.startsWith("/proprietaire/");
-  const isCaisseLogin = pathname === "/login";
+  const isLogin = pathname === "/login";
   const isInscription = pathname === "/inscription";
+  // ?owner=1 : re-authentification propriétaire demandée depuis la caisse — on
+  // ne renvoie pas vers /caisse même si la session tablette est active.
+  const wantsOwner = request.nextUrl.searchParams.get("owner") === "1";
 
   if ((isOwnerArea || isOwnerSubPage) && !ownerUser) {
     const url = request.nextUrl.clone();
-    url.pathname = "/proprietaire";
+    url.pathname = "/login";
+    url.search = "owner=1";
     return NextResponse.redirect(url);
   }
 
   if (isCaisse && !caisseUser) {
     const url = request.nextUrl.clone();
     url.pathname = "/login";
+    url.search = "";
     return NextResponse.redirect(url);
   }
 
-  if (isCaisseLogin && caisseUser) {
+  if (isLogin && ownerUser && (wantsOwner || !caisseUser)) {
+    const url = request.nextUrl.clone();
+    url.pathname = "/dashboard";
+    url.search = "";
+    return NextResponse.redirect(url);
+  }
+
+  if (isLogin && caisseUser && !wantsOwner) {
     const url = request.nextUrl.clone();
     url.pathname = "/caisse";
+    url.search = "";
     return NextResponse.redirect(url);
   }
 
-  if ((isOwnerLogin || isInscription) && ownerUser) {
+  if (isInscription && ownerUser) {
     const url = request.nextUrl.clone();
     url.pathname = "/dashboard";
     return NextResponse.redirect(url);

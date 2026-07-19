@@ -20,11 +20,8 @@ export function Footer() {
           <Link href="/inscription" className="hover:text-foreground">
             Essai gratuit
           </Link>
-          <Link href="/proprietaire" className="hover:text-foreground">
-            Espace propriétaire
-          </Link>
           <Link href="/login" className="hover:text-foreground">
-            Connexion caisse
+            Connexion
           </Link>
         </nav>
       </div>

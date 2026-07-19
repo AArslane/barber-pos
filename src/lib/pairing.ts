@@ -77,7 +77,7 @@ export async function redeemPairingCode(rawCode: string): Promise<RedeemResult> 
 
   // Un compte device jetable par tablette : le supprimer (Réglages → Sécurité)
   // révoque cette tablette sans toucher aux autres.
-  const email = `tablette-${row.shop_id.slice(0, 8)}-${randomUUID().slice(0, 8)}@device.barber-pos.local`;
+  const email = `tablette-${row.shop_id.slice(0, 8)}-${randomUUID().slice(0, 8)}@device.salonflow.local`;
   const password = randomUUID();
   const { data: created, error } = await admin.auth.admin.createUser({
     email,

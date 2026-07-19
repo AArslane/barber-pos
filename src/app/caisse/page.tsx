@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useLiveQuery } from "dexie-react-hooks";
 import { db, getDeviceId } from "@/lib/db";
+import { BRAND_NAME } from "@/lib/brand";
 import { recordSale, refreshCatalog, startSyncLoop } from "@/lib/sync";
 import {
   formatEUR,
@@ -127,7 +128,7 @@ export default function CaissePage() {
         <div className="flex items-center gap-3">
           <span className="flex items-center gap-2 font-display text-sm tracking-widest">
             <ScissorsIcon className="w-4 h-4 text-gold-500" />
-            BARBER POS
+            {BRAND_NAME.toUpperCase()}
           </span>
           {barber && step !== "barber" && (
             <button

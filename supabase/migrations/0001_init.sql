@@ -1,4 +1,4 @@
--- barber-pos — schéma initial
+-- SalonFlow (ex barber-pos) — schéma initial
 -- Multi-tenant : toutes les tables métier portent shop_id, isolées par RLS via members.
 -- Deux rôles réels (members.role), appliqués par policy explicite par opération (jamais de "for all") :
 --   owner  : proprio/admin, accès complet à son shop

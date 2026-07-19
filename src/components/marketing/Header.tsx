@@ -14,7 +14,7 @@ export function Header() {
             Tarifs
           </Link>
           <Link
-            href="/proprietaire"
+            href="/login"
             className="hidden sm:inline text-muted hover:text-foreground"
           >
             Se connecter

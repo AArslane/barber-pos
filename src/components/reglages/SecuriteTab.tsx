@@ -7,6 +7,7 @@ import {
   type ConnectedDevice,
 } from "@/app/dashboard/reglages/actions";
 import { generatePairingCode, disconnectDevice, type PairingCode } from "@/lib/pairing";
+import { BRAND_NAME } from "@/lib/brand";
 import type { ShopSettings } from "@/lib/types";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
@@ -135,7 +136,7 @@ export function SecuriteTab({
         {pairing && (
           <div className="space-y-1 rounded-xl border border-gold-400/40 bg-gold-500/5 p-3">
             <p className="text-sm text-muted">
-              Sur la tablette : ouvrez Barber POS et saisissez ce code — valable 10 minutes :
+              Sur la tablette : ouvrez {BRAND_NAME} et saisissez ce code — valable 10 minutes :
             </p>
             <p className="text-center font-mono text-3xl tracking-[0.3em] text-gold-400">
               {pairing.code}

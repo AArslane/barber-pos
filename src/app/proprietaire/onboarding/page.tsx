@@ -9,6 +9,7 @@ import {
   type ServiceTemplateItem,
 } from "./actions";
 import { generatePairingCode, type PairingCode } from "@/lib/pairing";
+import { BRAND_NAME } from "@/lib/brand";
 import { track } from "@/lib/analytics";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
@@ -113,7 +114,7 @@ export default function OnboardingPage() {
       <Card className="w-full max-w-lg space-y-6 p-8">
         <div className="space-y-4">
           <h1 className="font-display text-2xl tracking-widest text-center">
-            BIENVENUE SUR BARBER <span className="text-gold-400">POS</span>
+            BIENVENUE SUR SALON<span className="text-gold-400">FLOW</span>
           </h1>
           <ol className="flex justify-between text-xs text-faint">
             {steps.map((label, i) => (
@@ -265,7 +266,7 @@ export default function OnboardingPage() {
           <div className="space-y-4">
             <p className="text-sm text-muted">
               Générez un code d&apos;appairage pour connecter la tablette du salon : sur la
-              tablette, ouvrez Barber POS et saisissez ce code. Valable 10 minutes,
+              tablette, ouvrez {BRAND_NAME} et saisissez ce code. Valable 10 minutes,
               régénérable à tout moment depuis Réglages → Sécurité.
             </p>
             <Button
@@ -300,7 +301,7 @@ export default function OnboardingPage() {
                   {pairing.code}
                 </p>
                 <p className="text-muted">
-                  Sur la tablette : ouvrez Barber POS et saisissez ce code. Un nouveau code peut
+                  Sur la tablette : ouvrez {BRAND_NAME} et saisissez ce code. Un nouveau code peut
                   être généré depuis Réglages → Sécurité.
                 </p>
               </Card>

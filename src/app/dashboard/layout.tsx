@@ -52,7 +52,7 @@ export default async function DashboardLayout({
                 className="inline-flex items-center rounded-lg bg-surface-2 px-3 py-2 text-foreground hover:bg-border-strong/30 hover:text-foreground"
               />
             )}
-            <LogoutButton scope="owner" redirectTo="/proprietaire" />
+            <LogoutButton scope="owner" redirectTo="/login" />
           </div>
         </header>
         <div className="border-b border-border px-4 sm:px-6 py-2">
