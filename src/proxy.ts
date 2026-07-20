@@ -41,12 +41,26 @@ export async function proxy(request: NextRequest) {
   request.headers.set("x-pathname", pathname);
   const response = NextResponse.next({ request });
 
-  // Rafraîchit les deux sessions (maintient les cookies à jour) et récupère
-  // l'utilisateur de chaque scope — la caisse et l'admin sont des sessions
-  // indépendantes sur la même tablette.
+  const isOwnerArea = pathname.startsWith("/dashboard");
+  const isCaisse = pathname.startsWith("/caisse");
+  // Sous-pages (ex. l'onboarding) : nécessitent une session owner authentifiée,
+  // même si aucun shop n'existe encore. /proprietaire lui-même redirige vers
+  // /login (page), la connexion est unifiée.
+  const isOwnerSubPage = pathname.startsWith("/proprietaire/");
+  const isLogin = pathname === "/login";
+  const isInscription = pathname === "/inscription";
+
+  // Chaque appel getUser est un aller-retour réseau vers Supabase : on ne
+  // résout que le ou les scopes dont la route a réellement besoin. Les pages
+  // publiques (landing, tarifs, mentions…) n'en paient aucun.
+  const needsCaisse = isCaisse || isLogin || pathname === "/";
+  const needsOwner = isOwnerArea || isOwnerSubPage || isLogin || isInscription;
+
+  // La caisse et l'admin sont des sessions indépendantes sur la même tablette ;
+  // getScopedUser rafraîchit aussi les cookies du scope qu'il résout.
   const [caisseSession, ownerSession] = await Promise.all([
-    getScopedUser(request, response, "caisse"),
-    getScopedUser(request, response, "owner"),
+    needsCaisse ? getScopedUser(request, response, "caisse") : null,
+    needsOwner ? getScopedUser(request, response, "owner") : null,
   ]);
 
   // Chaque scope n'accepte que son type de compte (app_metadata.role est posé
@@ -64,14 +78,6 @@ export async function proxy(request: NextRequest) {
     return NextResponse.redirect(url);
   }
 
-  const isOwnerArea = pathname.startsWith("/dashboard");
-  const isCaisse = pathname.startsWith("/caisse");
-  // Sous-pages (ex. l'onboarding) : nécessitent une session owner authentifiée,
-  // même si aucun shop n'existe encore. /proprietaire lui-même redirige vers
-  // /login (page), la connexion est unifiée.
-  const isOwnerSubPage = pathname.startsWith("/proprietaire/");
-  const isLogin = pathname === "/login";
-  const isInscription = pathname === "/inscription";
   // ?owner=1 : re-authentification propriétaire demandée depuis la caisse — on
   // ne renvoie pas vers /caisse même si la session tablette est active.
   const wantsOwner = request.nextUrl.searchParams.get("owner") === "1";
