@@ -24,54 +24,67 @@ export default function LoginPage() {
     e.preventDefault();
     setLoading(true);
     setError(null);
-    const result = await redeemPairingCode(code);
-    if (!result.ok) {
-      setError(result.error);
+    try {
+      const result = await redeemPairingCode(code);
+      if (!result.ok) {
+        setError(result.error);
+        setLoading(false);
+        return;
+      }
+      router.replace("/caisse");
+      router.refresh();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Une erreur est survenue.");
       setLoading(false);
-      return;
     }
-    router.replace("/caisse");
-    router.refresh();
   }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setLoading(true);
     setError(null);
-    // Un seul formulaire pour les deux types de compte : on authentifie sur le
-    // scope caisse pour lire le rôle, puis on bascule sur le scope owner si le
-    // compte n'est pas une tablette (les deux sessions cohabitent par cookies
-    // distincts, voir SESSION_COOKIE_NAMES).
-    const caisse = createClient();
-    const { data, error } = await caisse.auth.signInWithPassword({
-      email,
-      password,
-    });
-    if (error) {
-      setError("Email ou mot de passe incorrect.");
-      setLoading(false);
-      return;
-    }
-    if (data.user?.app_metadata.role === "device") {
-      router.replace("/caisse");
+    // Toute exception doit repasser par setLoading(false) : sans ça le bouton
+    // reste bloqué sur "Connexion…" sans message, et l'utilisateur n'a aucun
+    // moyen de savoir ce qui a échoué.
+    try {
+      // Un seul formulaire pour les deux types de compte : on authentifie sur le
+      // scope caisse pour lire le rôle, puis on bascule sur le scope owner si le
+      // compte n'est pas une tablette (les deux sessions cohabitent par cookies
+      // distincts, voir SESSION_COOKIE_NAMES).
+      const caisse = createClient();
+      const { data, error } = await caisse.auth.signInWithPassword({
+        email,
+        password,
+      });
+      if (error) {
+        setError("Email ou mot de passe incorrect.");
+        setLoading(false);
+        return;
+      }
+      if (data.user?.app_metadata.role === "device") {
+        router.replace("/caisse");
+        router.refresh();
+        return;
+      }
+      // Compte propriétaire : libérer le scope caisse (local seulement, pas de
+      // révocation serveur) et ouvrir une vraie session sur le scope owner.
+      await caisse.auth.signOut({ scope: "local" });
+      const owner = createClient("owner");
+      const { error: ownerError } = await owner.auth.signInWithPassword({
+        email,
+        password,
+      });
+      if (ownerError) {
+        setError("Connexion impossible, réessayez.");
+        setLoading(false);
+        return;
+      }
+      router.replace("/dashboard");
       router.refresh();
-      return;
-    }
-    // Compte propriétaire : libérer le scope caisse (local seulement, pas de
-    // révocation serveur) et ouvrir une vraie session sur le scope owner.
-    await caisse.auth.signOut({ scope: "local" });
-    const owner = createClient("owner");
-    const { error: ownerError } = await owner.auth.signInWithPassword({
-      email,
-      password,
-    });
-    if (ownerError) {
-      setError("Connexion impossible, réessayez.");
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Une erreur est survenue.");
       setLoading(false);
-      return;
     }
-    router.replace("/dashboard");
-    router.refresh();
   }
 
   return (
