@@ -6,7 +6,13 @@ import {
   listConnectedDevices,
   type ConnectedDevice,
 } from "@/app/dashboard/reglages/actions";
-import { generatePairingCode, disconnectDevice, type PairingCode } from "@/lib/pairing";
+import {
+  generatePairingCode,
+  getActivePairingCode,
+  renameDevice,
+  disconnectDevice,
+  type PairingCode,
+} from "@/lib/pairing";
 import { BRAND_NAME } from "@/lib/brand";
 import type { ShopSettings } from "@/lib/types";
 import { Button } from "@/components/ui/Button";
@@ -29,6 +35,7 @@ export function SecuriteTab({
   const [devices, setDevices] = useState<ConnectedDevice[]>([]);
   const [pairing, setPairing] = useState<PairingCode | null>(null);
   const [generating, setGenerating] = useState(false);
+  const [newLabel, setNewLabel] = useState("");
   const [toDisconnect, setToDisconnect] = useState<ConnectedDevice | null>(null);
   const toast = useToast();
 
@@ -40,7 +47,19 @@ export function SecuriteTab({
 
   useEffect(() => {
     void listConnectedDevices(shopId).then(setDevices);
+    // Un code encore valide doit se réafficher : quitter la page ne le perd plus.
+    void getActivePairingCode(shopId).then(setPairing);
   }, [shopId]);
+
+  // Fait expirer l'affichage en même temps que le code en base.
+  useEffect(() => {
+    if (!pairing) return;
+    const remaining = new Date(pairing.expiresAt).getTime() - Date.now();
+    // max(0) : si le code a expiré entre la lecture et cet effet, on l'efface au
+    // tick suivant plutôt que par un setState synchrone (cascade de rendus).
+    const timer = setTimeout(() => setPairing(null), Math.max(remaining, 0));
+    return () => clearTimeout(timer);
+  }, [pairing]);
 
   // Optimiste : l'UI bascule tout de suite, puis revert + erreur visible si l'écriture échoue.
   async function save(next: ShopSettings) {
@@ -56,14 +75,29 @@ export function SecuriteTab({
     }
   }
 
-  async function generate() {
+  async function generate(label: string) {
     setGenerating(true);
     try {
-      setPairing(await generatePairingCode(shopId));
+      setPairing(await generatePairingCode(shopId, label));
+      setNewLabel("");
     } catch {
       toast.error("Échec de la génération du code.");
     } finally {
       setGenerating(false);
+    }
+  }
+
+  async function rename(device: ConnectedDevice, label: string) {
+    const previous = devices;
+    setDevices((prev) =>
+      prev.map((d) => (d.userId === device.userId ? { ...d, label: label.trim() || null } : d)),
+    );
+    try {
+      await renameDevice(shopId, device.userId, label);
+      toast.success("Enregistré");
+    } catch {
+      setDevices(previous);
+      toast.error("Échec du renommage — réessayez.");
     }
   }
 
@@ -127,45 +161,114 @@ export function SecuriteTab({
       </Card>
 
       <Card className="space-y-4">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <h3 className="text-sm uppercase tracking-wide text-faint">Tablettes connectées</h3>
-          <Button onClick={generate} disabled={generating}>
+        <h3 className="text-sm uppercase tracking-wide text-faint">Tablettes connectées</h3>
+
+        <form
+          onSubmit={(e) => {
+            e.preventDefault();
+            void generate(newLabel);
+          }}
+          className="flex flex-wrap items-center gap-3"
+        >
+          <Input
+            value={newLabel}
+            onChange={(e) => setNewLabel(e.target.value)}
+            placeholder="Nom de la tablette (ex. iPad comptoir)"
+            maxLength={40}
+            className="w-64"
+          />
+          <Button type="submit" disabled={generating}>
             {generating ? "Génération…" : "Connecter une tablette"}
           </Button>
-        </div>
-        {pairing && (
-          <div className="space-y-1 rounded-xl border border-gold-400/40 bg-gold-500/5 p-3">
-            <p className="text-sm text-muted">
-              Sur la tablette : ouvrez {BRAND_NAME} et saisissez ce code — valable 10 minutes :
-            </p>
-            <p className="text-center font-mono text-3xl tracking-[0.3em] text-gold-400">
-              {pairing.code}
-            </p>
-          </div>
-        )}
+        </form>
+
+        {pairing && <PairingCodeCard pairing={pairing} />}
+
         {devices.length === 0 && <p className="text-sm text-muted">Aucune tablette configurée.</p>}
         {devices.map((d) => (
-          <div
+          <DeviceRow
             key={d.userId}
-            className="flex flex-wrap items-center gap-3 rounded-xl border border-border bg-background/50 p-3"
-          >
-            <span className="font-mono text-sm text-foreground">{d.email}</span>
-            <Button onClick={() => setToDisconnect(d)} className="ml-auto">
-              Déconnecter
-            </Button>
-          </div>
+            device={d}
+            onRename={(label) => rename(d, label)}
+            onNewCode={() => generate(d.label ?? "")}
+            onDisconnect={() => setToDisconnect(d)}
+          />
         ))}
       </Card>
 
       <ConfirmDialog
         open={toDisconnect !== null}
-        title="Déconnecter cette tablette ?"
+        title={`Déconnecter « ${toDisconnect?.label ?? toDisconnect?.email ?? ""} » ?`}
         message="La caisse de cette tablette sera déconnectée définitivement. Pour la reconnecter, générez un nouveau code d'appairage."
         confirmLabel="Déconnecter"
         danger
         onConfirm={confirmDisconnect}
         onCancel={() => setToDisconnect(null)}
       />
+    </div>
+  );
+}
+
+function remainingLabel(expiresAt: string): string {
+  const ms = new Date(expiresAt).getTime() - Date.now();
+  if (ms <= 0) return "expiré";
+  const minutes = Math.floor(ms / 60000);
+  const seconds = Math.floor((ms % 60000) / 1000);
+  return minutes > 0 ? `${minutes} min ${seconds}s` : `${seconds}s`;
+}
+
+// Le compte à rebours rend visible la fenêtre restante : le code est délibérément
+// éphémère, l'afficher sans échéance donnerait l'illusion d'un identifiant permanent.
+function PairingCodeCard({ pairing }: { pairing: PairingCode }) {
+  const [left, setLeft] = useState(() => remainingLabel(pairing.expiresAt));
+
+  useEffect(() => {
+    const timer = setInterval(() => setLeft(remainingLabel(pairing.expiresAt)), 1000);
+    return () => clearInterval(timer);
+  }, [pairing.expiresAt]);
+
+  return (
+    <div className="space-y-1 rounded-xl border border-gold-400/40 bg-gold-500/5 p-3">
+      <p className="text-sm text-muted">
+        {pairing.label ? `Pour « ${pairing.label} » : ` : ""}
+        sur la tablette, ouvrez {BRAND_NAME} et saisissez ce code :
+      </p>
+      <p className="text-center font-mono text-3xl tracking-[0.3em] text-gold-400">
+        {pairing.code}
+      </p>
+      <p className="text-center text-xs text-faint">Expire dans {left}</p>
+    </div>
+  );
+}
+
+function DeviceRow({
+  device,
+  onRename,
+  onNewCode,
+  onDisconnect,
+}: {
+  device: ConnectedDevice;
+  onRename: (label: string) => void;
+  onNewCode: () => void;
+  onDisconnect: () => void;
+}) {
+  const [label, setLabel] = useState(device.label ?? "");
+
+  return (
+    <div className="flex flex-wrap items-center gap-3 rounded-xl border border-border bg-background/50 p-3">
+      <Input
+        value={label}
+        onChange={(e) => setLabel(e.target.value)}
+        onBlur={() => label !== (device.label ?? "") && onRename(label)}
+        placeholder="Sans nom"
+        maxLength={40}
+        className="w-56"
+      />
+      <span className="font-mono text-xs text-faint">{device.email}</span>
+      <div className="ml-auto flex items-center gap-1">
+        <Button onClick={onNewCode}>Nouveau code</Button>
+        <Button onClick={onDisconnect}>Déconnecter</Button>
+      </div>
     </div>
   );
 }

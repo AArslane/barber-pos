@@ -9,7 +9,7 @@ const CODE_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
 const CODE_LENGTH = 6;
 const CODE_TTL_MINUTES = 10;
 
-export type PairingCode = { code: string; expiresAt: string };
+export type PairingCode = { code: string; expiresAt: string; label: string | null };
 
 // Les server actions sont des endpoints publics : chaque action re-vérifie que
 // l'appelant a une session owner ET une membership owner sur le shop visé
@@ -30,10 +30,14 @@ async function assertOwnerOfShop(shopId: string): Promise<void> {
   if (!data) throw new Error("Réservé au propriétaire du salon");
 }
 
-export async function generatePairingCode(shopId: string): Promise<PairingCode> {
+export async function generatePairingCode(
+  shopId: string,
+  label?: string,
+): Promise<PairingCode> {
   await assertOwnerOfShop(shopId);
   const admin = createAdminClient();
   const expiresAt = new Date(Date.now() + CODE_TTL_MINUTES * 60 * 1000).toISOString();
+  const cleanLabel = label?.trim().slice(0, 40) || null;
 
   // Collision improbable (32^6) mais le code est unique en base : on retente.
   for (let attempt = 0; attempt < 3; attempt++) {
@@ -43,10 +47,38 @@ export async function generatePairingCode(shopId: string): Promise<PairingCode> 
     }
     const { error } = await admin
       .from("device_pairing_codes")
-      .upsert({ shop_id: shopId, code, expires_at: expiresAt });
-    if (!error) return { code, expiresAt };
+      .upsert({ shop_id: shopId, code, expires_at: expiresAt, label: cleanLabel });
+    if (!error) return { code, expiresAt, label: cleanLabel };
   }
   throw new Error("Impossible de générer un code, réessayez");
+}
+
+// Relit le code en cours pour pouvoir le réafficher : quitter la page ne doit
+// pas le perdre alors qu'il est encore valide. Volontairement borné à sa durée
+// de vie — un code expiré n'est jamais renvoyé, il faut en générer un nouveau.
+export async function getActivePairingCode(shopId: string): Promise<PairingCode | null> {
+  await assertOwnerOfShop(shopId);
+  const admin = createAdminClient();
+  const { data } = await admin
+    .from("device_pairing_codes")
+    .select("code, expires_at, label")
+    .eq("shop_id", shopId)
+    .maybeSingle();
+  if (!data || new Date(data.expires_at).getTime() < Date.now()) return null;
+  return { code: data.code, expiresAt: data.expires_at, label: data.label };
+}
+
+export async function renameDevice(shopId: string, userId: string, label: string): Promise<void> {
+  await assertOwnerOfShop(shopId);
+  const admin = createAdminClient();
+  // Restreint aux comptes device du shop de l'appelant : jamais un owner.
+  const { error } = await admin
+    .from("members")
+    .update({ label: label.trim().slice(0, 40) || null })
+    .eq("shop_id", shopId)
+    .eq("user_id", userId)
+    .eq("role", "device");
+  if (error) throw new Error(error.message);
 }
 
 export type RedeemResult = { ok: true } | { ok: false; error: string };
@@ -67,7 +99,7 @@ export async function redeemPairingCode(rawCode: string): Promise<RedeemResult> 
   const admin = createAdminClient();
   const { data: row } = await admin
     .from("device_pairing_codes")
-    .select("shop_id, expires_at")
+    .select("shop_id, expires_at, label")
     .eq("code", code)
     .maybeSingle();
   if (!row || new Date(row.expires_at).getTime() < Date.now()) return reject();
@@ -91,7 +123,7 @@ export async function redeemPairingCode(rawCode: string): Promise<RedeemResult> 
 
   const { error: memberError } = await admin
     .from("members")
-    .insert({ user_id: created.user.id, shop_id: row.shop_id, role: "device" });
+    .insert({ user_id: created.user.id, shop_id: row.shop_id, role: "device", label: row.label });
   if (memberError) {
     await admin.auth.admin.deleteUser(created.user.id);
     return { ok: false, error: "Impossible de rattacher la tablette au salon." };

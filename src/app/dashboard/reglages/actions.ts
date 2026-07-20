@@ -39,13 +39,18 @@ export async function getSubscriptionInfo(
   return { stripeConfigured: true, subscription: await getSubscription(shopId) };
 }
 
-export type ConnectedDevice = { userId: string; email: string; createdAt: string };
+export type ConnectedDevice = {
+  userId: string;
+  email: string;
+  label: string | null;
+  createdAt: string;
+};
 
 export async function listConnectedDevices(shopId: string): Promise<ConnectedDevice[]> {
   const supabase = await createClient("owner");
   const { data, error } = await supabase
     .from("members")
-    .select("user_id, created_at")
+    .select("user_id, created_at, label")
     .eq("shop_id", shopId)
     .eq("role", "device");
   if (error || !data) return [];
@@ -55,7 +60,12 @@ export async function listConnectedDevices(shopId: string): Promise<ConnectedDev
   for (const m of data) {
     const { data: userRes } = await admin.auth.admin.getUserById(m.user_id);
     if (userRes.user) {
-      devices.push({ userId: m.user_id, email: userRes.user.email ?? "?", createdAt: m.created_at });
+      devices.push({
+        userId: m.user_id,
+        email: userRes.user.email ?? "?",
+        label: m.label,
+        createdAt: m.created_at,
+      });
     }
   }
   return devices;

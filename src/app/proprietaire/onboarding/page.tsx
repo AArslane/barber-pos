@@ -46,6 +46,7 @@ export default function OnboardingPage() {
   const [servicesChoice, setServicesChoice] = useState<"template" | "empty">("template");
 
   const [pairing, setPairing] = useState<PairingCode | null>(null);
+  const [tabletLabel, setTabletLabel] = useState("");
 
   function run(fn: () => Promise<void>) {
     setError(null);
@@ -101,7 +102,7 @@ export default function OnboardingPage() {
   function generateCode() {
     if (!shopId) return;
     run(async () => {
-      const code = await generatePairingCode(shopId);
+      const code = await generatePairingCode(shopId, tabletLabel);
       setPairing(code);
       setStep(5);
     });
@@ -269,6 +270,14 @@ export default function OnboardingPage() {
               tablette, ouvrez {BRAND_NAME} et saisissez ce code. Valable 10 minutes,
               régénérable à tout moment depuis Réglages → Sécurité.
             </p>
+            <Field label="Nom de la tablette (facultatif)">
+              <Input
+                value={tabletLabel}
+                onChange={(e) => setTabletLabel(e.target.value)}
+                placeholder="iPad comptoir"
+                maxLength={40}
+              />
+            </Field>
             <Button
               variant="primary"
               size="lg"
@@ -301,8 +310,9 @@ export default function OnboardingPage() {
                   {pairing.code}
                 </p>
                 <p className="text-muted">
-                  Sur la tablette : ouvrez {BRAND_NAME} et saisissez ce code. Un nouveau code peut
-                  être généré depuis Réglages → Sécurité.
+                  Sur la tablette : ouvrez {BRAND_NAME} et saisissez ce code. Tant qu&apos;il est
+                  valide, vous le retrouverez dans Réglages → Sécurité — et vous pourrez en générer
+                  un nouveau à tout moment au même endroit.
                 </p>
               </Card>
             )}
