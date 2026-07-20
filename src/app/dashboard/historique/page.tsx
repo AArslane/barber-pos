@@ -159,7 +159,12 @@ export default function HistoriquePage() {
                     })}
                     {" · "}
                     {sale.sale_items
-                      .map((i) => (i.qty > 1 ? `${i.qty}× ` : "") + i.name_snapshot)
+                      .map(
+                        (i) =>
+                          (i.qty > 1 ? `${i.qty}× ` : "") +
+                          i.name_snapshot +
+                          (i.item_type === "product" ? " (produit)" : ""),
+                      )
                       .join(", ")}
                   </p>
                 </div>

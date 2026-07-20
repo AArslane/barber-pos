@@ -64,12 +64,46 @@ export type Service = {
   active: boolean;
 };
 
+export type Product = {
+  id: string;
+  shop_id: string;
+  name: string;
+  price: number;
+  stock: number;
+  low_stock_threshold: number;
+  sort_order: number;
+  active: boolean;
+};
+
+export type StockReason = "sale" | "refund" | "restock" | "correction";
+
+// owner-only : écrit par les triggers de vente et la RPC adjust_stock
+export type StockMovement = {
+  id: number;
+  shop_id: string;
+  product_id: string;
+  delta: number;
+  reason: StockReason;
+  sale_id: string | null;
+  note: string | null;
+  created_at: string;
+};
+
+export const STOCK_REASON_LABELS: Record<StockReason, string> = {
+  sale: "Vente",
+  refund: "Remboursement",
+  restock: "Réappro",
+  correction: "Correction",
+};
+
 export type Sale = {
   id: string;
   shop_id: string;
   barber_id: string;
   payment_method: PaymentMethod;
   total: number;
+  // part prestations du total : base de calcul des commissions, les produits revendus n'y entrent pas
+  services_total: number;
   status: "completed" | "refunded";
   created_at: string;
   device_id: string | null;
@@ -78,7 +112,10 @@ export type Sale = {
 export type SaleItem = {
   id: string;
   sale_id: string;
+  shop_id: string;
+  item_type: "service" | "product";
   service_id: string | null;
+  product_id: string | null;
   name_snapshot: string;
   price_snapshot: number;
   qty: number;

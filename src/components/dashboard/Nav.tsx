@@ -9,6 +9,7 @@ import {
   ChartIcon,
   HistoryIcon,
   HomeIcon,
+  PackageIcon,
   PercentIcon,
   SettingsIcon,
 } from "@/components/icons";
@@ -18,6 +19,7 @@ const LINKS = [
   { href: "/dashboard/historique", label: "Historique", icon: HistoryIcon },
   { href: "/dashboard/stats", label: "Stats", icon: ChartIcon },
   { href: "/dashboard/commissions", label: "Commissions", icon: PercentIcon },
+  { href: "/dashboard/produits", label: "Produits", icon: PackageIcon },
   { href: "/dashboard/reglages", label: "Réglages", icon: SettingsIcon },
 ];
 

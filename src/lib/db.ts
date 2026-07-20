@@ -1,5 +1,5 @@
 import Dexie, { type EntityTable } from "dexie";
-import type { Barber, Sale, SaleItem, Service } from "@/lib/types";
+import type { Barber, Product, Sale, SaleItem, Service } from "@/lib/types";
 
 // Vente en attente de sync : la vente + ses lignes, en un seul enregistrement.
 export type PendingSale = Sale & { items: SaleItem[] };
@@ -11,6 +11,7 @@ export type RejectedSale = PendingSale & { rejected_reason: string; rejected_at:
 export const db = new Dexie("barber-pos") as Dexie & {
   barbers: EntityTable<Barber, "id">;
   services: EntityTable<Service, "id">;
+  products: EntityTable<Product, "id">;
   pending_sales: EntityTable<PendingSale, "id">;
   rejected_sales: EntityTable<RejectedSale, "id">;
   meta: EntityTable<{ key: string; value: string }, "key">;
@@ -26,6 +27,15 @@ db.version(1).stores({
 db.version(2).stores({
   barbers: "id, shop_id",
   services: "id, shop_id",
+  pending_sales: "id, created_at",
+  rejected_sales: "id, created_at",
+  meta: "key",
+});
+
+db.version(3).stores({
+  barbers: "id, shop_id",
+  services: "id, shop_id",
+  products: "id, shop_id",
   pending_sales: "id, created_at",
   rejected_sales: "id, created_at",
   meta: "key",

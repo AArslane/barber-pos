@@ -24,3 +24,8 @@ insert into services (shop_id, name, price, category, sort_order) values
   ('11111111-1111-1111-1111-111111111111', 'Contours', 8, 'Barbe', 2),
   ('11111111-1111-1111-1111-111111111111', 'Soin visage', 15, 'Soins', 1),
   ('11111111-1111-1111-1111-111111111111', 'Coloration', 25, 'Soins', 2);
+
+insert into products (shop_id, name, price, stock, low_stock_threshold, sort_order) values
+  ('11111111-1111-1111-1111-111111111111', 'Cire coiffante', 12, 10, 3, 1),
+  ('11111111-1111-1111-1111-111111111111', 'Shampooing', 9, 6, 2, 2),
+  ('11111111-1111-1111-1111-111111111111', 'Huile à barbe', 15, 4, 2, 3);

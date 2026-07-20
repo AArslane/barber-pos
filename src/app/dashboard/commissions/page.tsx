@@ -80,7 +80,8 @@ export default function CommissionsPage() {
   const rows = barbers
     .map((b) => {
       const own = sales.filter((s) => s.barber_id === b.id);
-      const ca = own.reduce((sum, s) => sum + Number(s.total), 0);
+      // Les produits revendus ne rentrent pas dans la part du coiffeur.
+      const ca = own.reduce((sum, s) => sum + Number(s.services_total), 0);
       const pct = Number(commissions.find((c) => c.barber_id === b.id)?.commission_pct ?? 0);
       return {
         barber: b,
@@ -131,7 +132,7 @@ export default function CommissionsPage() {
               <tr className="text-left text-muted border-b border-border">
                 <th className="p-4 font-medium">Coiffeur</th>
                 <th className="p-4 font-medium text-right">Ventes</th>
-                <th className="p-4 font-medium text-right">CA</th>
+                <th className="p-4 font-medium text-right">CA prestations</th>
                 <th className="p-4 font-medium text-right">%</th>
                 <th className="p-4 font-medium text-right">À reverser</th>
               </tr>

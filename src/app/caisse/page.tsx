@@ -11,13 +11,16 @@ import {
   withShopSettingsDefaults,
   type Barber,
   type PaymentMethod,
+  type Product,
   type Service,
 } from "@/lib/types";
 import { SyncBadge } from "@/components/caisse/SyncBadge";
 import { PinModal } from "@/components/caisse/PinModal";
+import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { Skeleton } from "@/components/ui/Skeleton";
+import { cn } from "@/lib/cn";
 import {
   ArrowLeftIcon,
   BanknoteIcon,
@@ -30,12 +33,18 @@ import {
   XIcon,
 } from "@/components/icons";
 
-type CartLine = { service: Service; qty: number };
-type Step = "barber" | "services" | "payment" | "done";
+// Un ticket mélange librement prestations et produits ; `kind` décide de la
+// colonne remplie côté sale_items et de ce qui compte dans services_total.
+type CartLine =
+  | { kind: "service"; item: Service; qty: number }
+  | { kind: "product"; item: Product; qty: number };
+type Step = "barber" | "catalog" | "payment" | "done";
+type CatalogTab = "services" | "products";
 
 export default function CaissePage() {
   const barbers = useLiveQuery(() => db.barbers.toArray(), [], undefined);
   const services = useLiveQuery(() => db.services.toArray(), [], undefined);
+  const products = useLiveQuery(() => db.products.toArray(), [], undefined);
   const settingsMeta = useLiveQuery(() => db.meta.get("shop_settings"), [], undefined);
   const paymentMethods = withShopSettingsDefaults(
     settingsMeta ? JSON.parse(settingsMeta.value) : null,
@@ -45,6 +54,7 @@ export default function CaissePage() {
   const [barber, setBarber] = useState<Barber | null>(null);
   const [pinTarget, setPinTarget] = useState<Barber | null>(null);
   const [cart, setCart] = useState<CartLine[]>([]);
+  const [catalogTab, setCatalogTab] = useState<CatalogTab>("services");
   const [lastTotal, setLastTotal] = useState(0);
 
   useEffect(() => {
@@ -52,35 +62,37 @@ export default function CaissePage() {
     void refreshCatalog();
   }, []);
 
-  const total = cart.reduce((sum, l) => sum + l.service.price * l.qty, 0);
+  const total = cart.reduce((sum, l) => sum + l.item.price * l.qty, 0);
+  const servicesTotal = cart.reduce(
+    (sum, l) => (l.kind === "service" ? sum + l.item.price * l.qty : sum),
+    0,
+  );
 
   function selectBarber(b: Barber) {
     if (b.pin_hash) {
       setPinTarget(b);
     } else {
       setBarber(b);
-      setStep("services");
+      setStep("catalog");
     }
   }
 
-  function addService(s: Service) {
+  function addLine(line: CartLine) {
     setCart((prev) => {
-      const line = prev.find((l) => l.service.id === s.id);
-      if (line) {
+      const existing = prev.find((l) => l.kind === line.kind && l.item.id === line.item.id);
+      if (existing) {
         return prev.map((l) =>
-          l.service.id === s.id ? { ...l, qty: l.qty + 1 } : l,
+          l.kind === line.kind && l.item.id === line.item.id ? { ...l, qty: l.qty + 1 } : l,
         );
       }
-      return [...prev, { service: s, qty: 1 }];
+      return [...prev, line];
     });
   }
 
-  function removeService(serviceId: string) {
+  function removeLine(kind: CartLine["kind"], itemId: string) {
     setCart((prev) =>
       prev
-        .map((l) =>
-          l.service.id === serviceId ? { ...l, qty: l.qty - 1 } : l,
-        )
+        .map((l) => (l.kind === kind && l.item.id === itemId ? { ...l, qty: l.qty - 1 } : l))
         .filter((l) => l.qty > 0),
     );
   }
@@ -94,15 +106,19 @@ export default function CaissePage() {
       barber_id: barber.id,
       payment_method: method,
       total,
+      services_total: servicesTotal,
       status: "completed",
       created_at: new Date().toISOString(),
       device_id: getDeviceId(),
       items: cart.map((l) => ({
         id: crypto.randomUUID(),
         sale_id: saleId,
-        service_id: l.service.id,
-        name_snapshot: l.service.name,
-        price_snapshot: l.service.price,
+        shop_id: barber.shop_id,
+        item_type: l.kind,
+        service_id: l.kind === "service" ? l.item.id : null,
+        product_id: l.kind === "product" ? l.item.id : null,
+        name_snapshot: l.item.name,
+        price_snapshot: l.item.price,
         qty: l.qty,
       })),
     });
@@ -114,6 +130,7 @@ export default function CaissePage() {
   function reset() {
     setCart([]);
     setBarber(null);
+    setCatalogTab("services");
     setStep("barber");
   }
 
@@ -121,6 +138,9 @@ export default function CaissePage() {
     ? [...services].sort((a, b) => a.sort_order - b.sort_order)
     : [];
   const categories = [...new Set(sortedServices.map((s) => s.category))];
+  const sortedProducts = products
+    ? [...products].sort((a, b) => a.sort_order - b.sort_order || a.name.localeCompare(b.name))
+    : [];
 
   return (
     <div className="flex-1 flex flex-col min-h-0">
@@ -190,52 +210,113 @@ export default function CaissePage() {
         </main>
       )}
 
-      {step === "services" && (
+      {step === "catalog" && (
         <main className="flex-1 flex min-h-0">
-          <div className="flex-1 overflow-y-auto p-4 space-y-6">
-            {categories.map((cat) => (
-              <section key={cat}>
-                <h2 className="text-sm uppercase tracking-wide text-muted mb-2">
-                  {cat}
-                </h2>
-                <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-                  {sortedServices
-                    .filter((s) => s.category === cat)
-                    .map((s) => (
-                      <button
-                        key={s.id}
-                        onClick={() => addService(s)}
-                        className="min-h-[72px] p-4 rounded-xl bg-surface border border-border hover:border-gold-500/60 hover:bg-surface-2/60 active:scale-[0.97] transition-all duration-150 text-left"
-                      >
-                        <span className="block font-semibold">{s.name}</span>
-                        <span className="text-muted">{formatEUR(s.price)}</span>
-                      </button>
-                    ))}
-                </div>
-              </section>
-            ))}
+          <div className="flex-1 flex flex-col min-h-0">
+            <div className="flex gap-2 px-4 pt-4 shrink-0">
+              {(
+                [
+                  { tab: "services", label: "Prestations" },
+                  { tab: "products", label: "Produits" },
+                ] as { tab: CatalogTab; label: string }[]
+              ).map(({ tab, label }) => (
+                <button
+                  key={tab}
+                  onClick={() => setCatalogTab(tab)}
+                  className={cn(
+                    "min-h-11 px-5 rounded-xl font-semibold transition-colors duration-150",
+                    catalogTab === tab
+                      ? "bg-gold-500 text-black"
+                      : "bg-surface border border-border text-muted hover:text-foreground",
+                  )}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+
+            <div className="flex-1 overflow-y-auto p-4 space-y-6">
+              {catalogTab === "services" &&
+                categories.map((cat) => (
+                  <section key={cat}>
+                    <h2 className="text-sm uppercase tracking-wide text-muted mb-2">
+                      {cat}
+                    </h2>
+                    <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                      {sortedServices
+                        .filter((s) => s.category === cat)
+                        .map((s) => (
+                          <button
+                            key={s.id}
+                            onClick={() => addLine({ kind: "service", item: s, qty: 1 })}
+                            className="min-h-[72px] p-4 rounded-xl bg-surface border border-border hover:border-gold-500/60 hover:bg-surface-2/60 active:scale-[0.97] transition-all duration-150 text-left"
+                          >
+                            <span className="block font-semibold">{s.name}</span>
+                            <span className="text-muted">{formatEUR(s.price)}</span>
+                          </button>
+                        ))}
+                    </div>
+                  </section>
+                ))}
+
+              {catalogTab === "products" &&
+                (sortedProducts.length === 0 ? (
+                  <EmptyState title="Aucun produit. Ajoutez-en depuis le dashboard → Produits." />
+                ) : (
+                  <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                    {sortedProducts.map((p) => {
+                      // Le stock affiché tient compte de ce qui est déjà au ticket.
+                      const inCart =
+                        cart.find((l) => l.kind === "product" && l.item.id === p.id)?.qty ?? 0;
+                      const left = p.stock - inCart;
+                      return (
+                        <button
+                          key={p.id}
+                          // Volontairement jamais désactivé : une caisse n'empêche pas
+                          // d'encaisser un produit physiquement présent mais mal compté.
+                          onClick={() => addLine({ kind: "product", item: p, qty: 1 })}
+                          className="min-h-[72px] p-4 rounded-xl bg-surface border border-border hover:border-gold-500/60 hover:bg-surface-2/60 active:scale-[0.97] transition-all duration-150 text-left"
+                        >
+                          <span className="block font-semibold">{p.name}</span>
+                          <span className="flex items-center gap-2">
+                            <span className="text-muted">{formatEUR(p.price)}</span>
+                            {left <= 0 ? (
+                              <Badge tone="danger">Rupture</Badge>
+                            ) : left <= p.low_stock_threshold ? (
+                              <Badge tone="gold">{left} restant</Badge>
+                            ) : (
+                              <span className="text-xs text-faint">{left} en stock</span>
+                            )}
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                ))}
+            </div>
           </div>
           <aside className="w-72 border-l border-border flex flex-col shrink-0">
             <div className="flex-1 overflow-y-auto p-4 space-y-2">
               <h2 className="text-sm uppercase tracking-wide text-muted">Ticket</h2>
               {cart.length === 0 && (
-                <p className="text-muted text-sm">Sélectionnez une prestation</p>
+                <p className="text-muted text-sm">Sélectionnez une prestation ou un produit</p>
               )}
               {cart.map((l) => (
                 <div
-                  key={l.service.id}
+                  key={`${l.kind}-${l.item.id}`}
                   className="flex items-center justify-between gap-2 bg-surface rounded-lg px-3 py-2"
                 >
                   <div className="min-w-0">
-                    <p className="text-sm font-medium truncate">{l.service.name}</p>
+                    <p className="text-sm font-medium truncate">{l.item.name}</p>
                     <p className="text-xs text-muted">
-                      {l.qty} × {formatEUR(l.service.price)}
+                      {l.qty} × {formatEUR(l.item.price)}
+                      {l.kind === "product" && " · produit"}
                     </p>
                   </div>
                   <button
-                    onClick={() => removeService(l.service.id)}
+                    onClick={() => removeLine(l.kind, l.item.id)}
                     className="w-11 h-11 flex items-center justify-center rounded-lg bg-surface-2 hover:bg-border-strong/30 transition-colors duration-150 shrink-0"
-                    aria-label={`Retirer ${l.service.name}`}
+                    aria-label={`Retirer ${l.item.name}`}
                   >
                     <MinusIcon className="w-4 h-4" />
                   </button>
@@ -288,11 +369,11 @@ export default function CaissePage() {
               ))}
           </div>
           <button
-            onClick={() => setStep("services")}
+            onClick={() => setStep("catalog")}
             className="flex items-center gap-2 min-h-11 px-3 text-muted hover:text-foreground transition-colors duration-150"
           >
             <ArrowLeftIcon className="w-4 h-4" />
-            Retour aux prestations
+            Retour au catalogue
           </button>
         </main>
       )}
@@ -314,7 +395,7 @@ export default function CaissePage() {
           onSuccess={() => {
             setBarber(pinTarget);
             setPinTarget(null);
-            setStep("services");
+            setStep("catalog");
           }}
           onCancel={() => setPinTarget(null)}
         />

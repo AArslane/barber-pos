@@ -1,6 +1,6 @@
 import { createClient } from "@/lib/supabase/client";
 import { db, type PendingSale } from "@/lib/db";
-import { withShopSettingsDefaults, type Barber, type Service } from "@/lib/types";
+import { withShopSettingsDefaults, type Barber, type Product, type Service } from "@/lib/types";
 
 // Codes Postgres (via PostgREST) qui signalent un rejet définitif du serveur
 // (contrainte violée, RLS refusée...) plutôt qu'un problème réseau : inutile
@@ -31,21 +31,25 @@ async function setSyncError(message: string | null): Promise<void> {
 // Rafraîchit le catalogue local depuis Supabase (silencieux si offline).
 export async function refreshCatalog(): Promise<void> {
   const supabase = createClient();
-  const [barbersRes, servicesRes, shopRes] = await Promise.all([
+  const [barbersRes, servicesRes, productsRes, shopRes] = await Promise.all([
     supabase
       .from("barbers")
       .select("id, shop_id, display_name, color, pin_hash, active")
       .eq("active", true),
     supabase.from("services").select("*").eq("active", true),
+    supabase.from("products").select("*").eq("active", true),
     supabase.from("shops").select("settings").single(),
   ]);
-  if (barbersRes.error || servicesRes.error) return;
+  if (barbersRes.error || servicesRes.error || productsRes.error) return;
 
-  await db.transaction("rw", db.barbers, db.services, db.meta, async () => {
+  await db.transaction("rw", db.barbers, db.services, db.products, db.meta, async () => {
     await db.barbers.clear();
     await db.barbers.bulkPut(barbersRes.data as Barber[]);
     await db.services.clear();
     await db.services.bulkPut(servicesRes.data as Service[]);
+    // Le serveur fait autorité sur le stock : il écrase le décrément local optimiste.
+    await db.products.clear();
+    await db.products.bulkPut(productsRes.data as Product[]);
     const shopId = (barbersRes.data as Barber[])[0]?.shop_id;
     if (shopId) await db.meta.put({ key: "shop_id", value: shopId });
     if (!shopRes.error && shopRes.data) {
@@ -120,8 +124,22 @@ async function rejectSale(sale: PendingSale, reason: string): Promise<void> {
 }
 
 // Enregistre la vente localement puis tente la sync en arrière-plan.
+// Le stock des produits vendus est décrémenté localement pour rester juste
+// hors-ligne ; le serveur (trigger sale_items_apply_stock) reste l'autorité et
+// le prochain refreshCatalog écrase la valeur locale.
 export async function recordSale(sale: PendingSale): Promise<void> {
-  await db.pending_sales.put(sale);
+  const soldProducts = sale.items.filter((i) => i.item_type === "product" && i.product_id);
+
+  await db.transaction("rw", db.pending_sales, db.products, async () => {
+    await db.pending_sales.put(sale);
+    for (const item of soldProducts) {
+      const product = await db.products.get(item.product_id!);
+      if (product) {
+        await db.products.update(product.id, { stock: product.stock - item.qty });
+      }
+    }
+  });
+
   void syncPending().catch(() => {});
 }
 
