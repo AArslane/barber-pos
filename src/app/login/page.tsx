@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
+import { resetLocalCache } from "@/lib/db";
 import { redeemPairingCode } from "@/lib/pairing";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
@@ -31,6 +32,9 @@ export default function LoginPage() {
         setLoading(false);
         return;
       }
+      // Nouvelle identité de caisse : les données locales de l'ancienne
+      // boutique (catalogue, réglages, ventes rejetées) ne doivent pas survivre.
+      await resetLocalCache();
       router.replace("/caisse");
       router.refresh();
     } catch (e) {

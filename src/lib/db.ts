@@ -41,6 +41,21 @@ db.version(3).stores({
   meta: "key",
 });
 
+// À appeler quand la tablette change d'identité (nouvel appairage) : le
+// catalogue, les réglages et les ventes rejetées appartiennent à l'ancienne
+// boutique. Les ventes en attente sont conservées : si elles viennent du même
+// shop elles restent valides, sinon la garde de sync les écartera avec une
+// raison claire.
+export async function resetLocalCache(): Promise<void> {
+  await db.transaction("rw", db.barbers, db.services, db.products, db.rejected_sales, db.meta, async () => {
+    await db.barbers.clear();
+    await db.services.clear();
+    await db.products.clear();
+    await db.rejected_sales.clear();
+    await db.meta.clear();
+  });
+}
+
 export function getDeviceId(): string {
   const KEY = "barber-pos-device-id";
   let id = localStorage.getItem(KEY);

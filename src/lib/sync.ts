@@ -81,7 +81,16 @@ export async function syncPending(): Promise<number> {
 
   let synced = 0;
 
+  // Une vente enregistrée sous une ancienne identité (tablette ré-appairée sur
+  // une autre boutique) sera forcément refusée par RLS : on l'écarte localement
+  // avec une raison lisible plutôt que de brûler un aller-retour en 403.
+  const currentShopId = (await db.meta.get("shop_id"))?.value;
+
   for (const sale of pending) {
+    if (currentShopId && sale.shop_id !== currentShopId) {
+      await rejectSale(sale, "Vente liée à une ancienne boutique (tablette ré-appairée)");
+      continue;
+    }
     const { items, ...saleRow } = sale;
     // ignoreDuplicates (ON CONFLICT DO NOTHING) : rejouable sans doublon, et ne
     // requiert que la policy INSERT — le rôle device n'a pas de policy UPDATE.
