@@ -98,6 +98,17 @@ export async function syncPending(): Promise<number> {
       .from("sales")
       .upsert(saleRow, { onConflict: "id", ignoreDuplicates: true });
     if (saleError) {
+      // Un rejet RLS peut venir d'un jeton de tablette dé-appairée (compte
+      // supprimé côté serveur, JWT pas encore expiré) : la vente est légitime,
+      // on la garde en attente et on nomme le vrai problème au lieu de la
+      // classer rejetée.
+      if (saleError.code === "42501") {
+        const { error: userError } = await supabase.auth.getUser();
+        if (userError) {
+          await setSyncError("Tablette dé-appairée — reconnectez-la (Réglages → Sécurité)");
+          return synced;
+        }
+      }
       if (isPermanentRejection(saleError)) {
         await rejectSale(sale, saleError.message);
         continue;

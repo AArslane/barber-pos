@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import { createClient as createBareClient } from "@supabase/supabase-js";
 import { createClient } from "@/lib/supabase/client";
 import { resetLocalCache } from "@/lib/db";
 import { redeemPairingCode } from "@/lib/pairing";
@@ -51,12 +52,16 @@ export default function LoginPage() {
     // reste bloqué sur "Connexion…" sans message, et l'utilisateur n'a aucun
     // moyen de savoir ce qui a échoué.
     try {
-      // Un seul formulaire pour les deux types de compte : on authentifie sur le
-      // scope caisse pour lire le rôle, puis on bascule sur le scope owner si le
-      // compte n'est pas une tablette (les deux sessions cohabitent par cookies
-      // distincts, voir SESSION_COOKIE_NAMES).
-      const caisse = createClient();
-      const { data, error } = await caisse.auth.signInWithPassword({
+      // Un seul formulaire pour les deux types de compte. Le rôle est lu via un
+      // client jetable en mémoire (aucun cookie écrit) : s'authentifier sur le
+      // scope caisse pour deviner le rôle écraserait — puis détruirait — la
+      // session device d'une tablette appairée sur ce navigateur.
+      const probe = createBareClient(
+        process.env.NEXT_PUBLIC_SUPABASE_URL!,
+        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+        { auth: { persistSession: false, autoRefreshToken: false } },
+      );
+      const { data, error } = await probe.auth.signInWithPassword({
         email,
         password,
       });
@@ -65,25 +70,17 @@ export default function LoginPage() {
         setLoading(false);
         return;
       }
-      if (data.user?.app_metadata.role === "device") {
-        router.replace("/caisse");
-        router.refresh();
-        return;
-      }
-      // Compte propriétaire : libérer le scope caisse (local seulement, pas de
-      // révocation serveur) et ouvrir une vraie session sur le scope owner.
-      await caisse.auth.signOut({ scope: "local" });
-      const owner = createClient("owner");
-      const { error: ownerError } = await owner.auth.signInWithPassword({
+      const scope = data.user?.app_metadata.role === "device" ? "caisse" : "owner";
+      const { error: scopedError } = await createClient(scope).auth.signInWithPassword({
         email,
         password,
       });
-      if (ownerError) {
+      if (scopedError) {
         setError("Connexion impossible, réessayez.");
         setLoading(false);
         return;
       }
-      router.replace("/dashboard");
+      router.replace(scope === "caisse" ? "/caisse" : "/dashboard");
       router.refresh();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Une erreur est survenue.");
