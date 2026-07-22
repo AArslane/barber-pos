@@ -59,7 +59,9 @@ export default function LoginPage() {
       const probe = createBareClient(
         process.env.NEXT_PUBLIC_SUPABASE_URL!,
         process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-        { auth: { persistSession: false, autoRefreshToken: false } },
+        // storageKey dédié : sans lui, ce client partagerait la clé par défaut
+        // et déclencherait le warning "Multiple GoTrueClient instances".
+        { auth: { persistSession: false, autoRefreshToken: false, storageKey: "sb-login-probe" } },
       );
       const { data, error } = await probe.auth.signInWithPassword({
         email,
