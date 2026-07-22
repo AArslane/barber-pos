@@ -8,10 +8,17 @@ import { withShopSettingsDefaults, type Barber, type Product, type Service } fro
 const PERMANENT_ERROR_CODES = new Set([
   "23502", // not_null_violation
   "23503", // foreign_key_violation
-  "23505", // unique_violation
   "23514", // check_violation
   "42501", // insufficient_privilege (RLS)
 ]);
+
+// Rejouer une vente déjà synchronisée provoque un 23505 (unique_violation) :
+// c'est le signal que la ligne est déjà en base, donc un succès. On ne peut pas
+// utiliser un upsert ON CONFLICT DO NOTHING : Postgres exige alors une policy
+// SELECT sur la table, et le rôle device est volontairement INSERT-only.
+function isAlreadySynced(error: { code?: string } | null): boolean {
+  return error?.code === "23505";
+}
 
 function isPermanentRejection(error: { code?: string } | null): boolean {
   return !!error?.code && PERMANENT_ERROR_CODES.has(error.code);
@@ -92,12 +99,10 @@ export async function syncPending(): Promise<number> {
       continue;
     }
     const { items, ...saleRow } = sale;
-    // ignoreDuplicates (ON CONFLICT DO NOTHING) : rejouable sans doublon, et ne
-    // requiert que la policy INSERT — le rôle device n'a pas de policy UPDATE.
-    const { error: saleError } = await supabase
-      .from("sales")
-      .upsert(saleRow, { onConflict: "id", ignoreDuplicates: true });
-    if (saleError) {
+    // INSERT simple : rejouable sans doublon via le 23505 (voir isAlreadySynced),
+    // et ne requiert que la policy INSERT du rôle device.
+    const { error: saleError } = await supabase.from("sales").insert(saleRow);
+    if (saleError && !isAlreadySynced(saleError)) {
       // Un rejet RLS peut venir d'un jeton de tablette dé-appairée (compte
       // supprimé côté serveur, JWT pas encore expiré) : la vente est légitime,
       // on la garde en attente et on nomme le vrai problème au lieu de la
@@ -117,10 +122,8 @@ export async function syncPending(): Promise<number> {
       return synced; // offline ou erreur réseau : on retentera
     }
 
-    const { error: itemsError } = await supabase
-      .from("sale_items")
-      .upsert(items, { onConflict: "id", ignoreDuplicates: true });
-    if (itemsError) {
+    const { error: itemsError } = await supabase.from("sale_items").insert(items);
+    if (itemsError && !isAlreadySynced(itemsError)) {
       if (isPermanentRejection(itemsError)) {
         await rejectSale(sale, itemsError.message);
         continue;
