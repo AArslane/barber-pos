@@ -12,6 +12,7 @@ import {
   type Barber,
   type PaymentMethod,
   type Product,
+  type SalePayment,
   type Service,
 } from "@/lib/types";
 import { SyncBadge } from "@/components/caisse/SyncBadge";
@@ -56,6 +57,9 @@ export default function CaissePage() {
   const [cart, setCart] = useState<CartLine[]>([]);
   const [catalogTab, setCatalogTab] = useState<CatalogTab>("services");
   const [lastTotal, setLastTotal] = useState(0);
+  // Éditeur de paiement mixte (null = choix classique d'un seul mode).
+  // Montants saisis en texte, un champ par mode actif.
+  const [split, setSplit] = useState<Partial<Record<PaymentMethod, string>> | null>(null);
 
   useEffect(() => {
     startSyncLoop();
@@ -97,14 +101,15 @@ export default function CaissePage() {
     );
   }
 
-  async function confirmPayment(method: PaymentMethod) {
-    if (!barber || cart.length === 0) return;
+  async function confirmPayment(payments: SalePayment[]) {
+    if (!barber || cart.length === 0 || payments.length === 0) return;
     const saleId = crypto.randomUUID();
     await recordSale({
       id: saleId,
       shop_id: barber.shop_id,
       barber_id: barber.id,
-      payment_method: method,
+      payment_method: payments.length === 1 ? payments[0].method : "mixed",
+      payments,
       total,
       services_total: servicesTotal,
       status: "completed",
@@ -123,6 +128,7 @@ export default function CaissePage() {
       })),
     });
     setLastTotal(total);
+    setSplit(null);
     setStep("done");
     setTimeout(reset, 2000);
   }
@@ -131,7 +137,37 @@ export default function CaissePage() {
     setCart([]);
     setBarber(null);
     setCatalogTab("services");
+    setSplit(null);
     setStep("barber");
+  }
+
+  // Paiement mixte : tout est calculé en centimes pour éviter les flottants.
+  const enabledMethods = (Object.keys(paymentMethods) as PaymentMethod[]).filter(
+    (m) => paymentMethods[m].enabled,
+  );
+  const parseCents = (s: string | undefined): number => {
+    if (!s || s.trim() === "") return 0;
+    const n = Number(s.replace(",", "."));
+    return Number.isFinite(n) && n >= 0 ? Math.round(n * 100) : NaN;
+  };
+  const totalCents = Math.round(total * 100);
+  const splitCents = split
+    ? enabledMethods.map((m) => ({ method: m, cents: parseCents(split[m]) }))
+    : [];
+  const splitSum = splitCents.reduce((sum, p) => sum + (Number.isNaN(p.cents) ? 0 : p.cents), 0);
+  const splitRemainder = totalCents - splitSum;
+  const splitValid =
+    splitCents.every((p) => !Number.isNaN(p.cents)) &&
+    splitRemainder === 0 &&
+    splitCents.some((p) => p.cents > 0);
+
+  function confirmSplit() {
+    if (!splitValid) return;
+    void confirmPayment(
+      splitCents
+        .filter((p) => p.cents > 0)
+        .map((p) => ({ method: p.method, amount: p.cents / 100 })),
+    );
   }
 
   const sortedServices = services
@@ -348,28 +384,111 @@ export default function CaissePage() {
           <p className="font-display text-7xl tracking-wide">
             {formatEUR(total)}
           </p>
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 w-full max-w-2xl">
-            {(
-              [
-                { method: "cash", icon: BanknoteIcon },
-                { method: "card", icon: CreditCardIcon },
-                { method: "other", icon: WalletIcon },
-              ] as { method: PaymentMethod; icon: typeof BanknoteIcon }[]
-            )
-              .filter(({ method }) => paymentMethods[method].enabled)
-              .map(({ method, icon: PayIcon }) => (
+          {split === null ? (
+            <>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 w-full max-w-2xl">
+                {(
+                  [
+                    { method: "cash", icon: BanknoteIcon },
+                    { method: "card", icon: CreditCardIcon },
+                    { method: "other", icon: WalletIcon },
+                  ] as { method: PaymentMethod; icon: typeof BanknoteIcon }[]
+                )
+                  .filter(({ method }) => paymentMethods[method].enabled)
+                  .map(({ method, icon: PayIcon }) => (
+                    <button
+                      key={method}
+                      onClick={() => confirmPayment([{ method, amount: total }])}
+                      className="flex flex-col items-center gap-3 py-10 rounded-2xl bg-surface border border-border hover:border-gold-500/60 hover:bg-surface-2/60 active:scale-[0.97] transition-all duration-150 text-xl font-bold"
+                    >
+                      <PayIcon className="w-8 h-8 text-gold-400" />
+                      {paymentMethods[method].label}
+                    </button>
+                  ))}
+              </div>
+              {enabledMethods.length >= 2 && (
                 <button
-                  key={method}
-                  onClick={() => confirmPayment(method)}
-                  className="flex flex-col items-center gap-3 py-10 rounded-2xl bg-surface border border-border hover:border-gold-500/60 hover:bg-surface-2/60 active:scale-[0.97] transition-all duration-150 text-xl font-bold"
+                  onClick={() => setSplit({})}
+                  className="flex items-center gap-2 min-h-11 px-4 rounded-xl bg-surface border border-border text-muted hover:text-foreground hover:border-gold-500/60 transition-all duration-150 font-semibold"
                 >
-                  <PayIcon className="w-8 h-8 text-gold-400" />
-                  {paymentMethods[method].label}
+                  <BanknoteIcon className="w-4 h-4 text-gold-400" />
+                  <CreditCardIcon className="w-4 h-4 text-gold-400" />
+                  Paiement mixte
                 </button>
-              ))}
-          </div>
+              )}
+            </>
+          ) : (
+            <div className="w-full max-w-md space-y-3">
+              {enabledMethods.map((m) => {
+                const cents = parseCents(split[m]);
+                return (
+                  <div key={m} className="flex items-center gap-3">
+                    <span className="w-24 shrink-0 font-semibold">
+                      {paymentMethods[m].label}
+                    </span>
+                    <input
+                      inputMode="decimal"
+                      placeholder="0"
+                      value={split[m] ?? ""}
+                      onChange={(e) => setSplit({ ...split, [m]: e.target.value })}
+                      className={cn(
+                        "flex-1 min-h-12 px-4 rounded-xl bg-surface border text-right text-lg font-semibold outline-none transition-colors duration-150",
+                        Number.isNaN(cents)
+                          ? "border-danger"
+                          : "border-border focus:border-gold-500/60",
+                      )}
+                    />
+                    <button
+                      // Complète ce mode avec ce qui reste à payer.
+                      onClick={() => {
+                        const others = splitCents
+                          .filter((p) => p.method !== m && !Number.isNaN(p.cents))
+                          .reduce((sum, p) => sum + p.cents, 0);
+                        const rest = Math.max(totalCents - others, 0);
+                        setSplit({ ...split, [m]: (rest / 100).toString().replace(".", ",") });
+                      }}
+                      className="min-h-12 px-3 rounded-xl bg-surface-2 text-sm text-muted hover:text-foreground transition-colors duration-150 shrink-0"
+                    >
+                      Reste
+                    </button>
+                  </div>
+                );
+              })}
+              <p
+                className={cn(
+                  "text-center text-sm",
+                  splitRemainder === 0 ? "text-success" : "text-muted",
+                )}
+              >
+                {splitRemainder === 0
+                  ? "Compte bon ✓"
+                  : splitRemainder > 0
+                    ? `Reste à répartir : ${formatEUR(splitRemainder / 100)}`
+                    : `Excédent : ${formatEUR(-splitRemainder / 100)}`}
+              </p>
+              <Button
+                variant="primary"
+                size="xl"
+                className="w-full"
+                disabled={!splitValid}
+                onClick={confirmSplit}
+              >
+                Encaisser {formatEUR(total)}
+              </Button>
+              <button
+                onClick={() => setSplit(null)}
+                className="w-full flex items-center justify-center gap-2 min-h-11 text-muted hover:text-foreground transition-colors duration-150"
+              >
+                <ArrowLeftIcon className="w-4 h-4" />
+                Un seul mode de paiement
+              </button>
+            </div>
+          )}
           <button
-            onClick={() => setStep("catalog")}
+            onClick={() => {
+              setSplit(null);
+              setStep("catalog");
+            }}
             className="flex items-center gap-2 min-h-11 px-3 text-muted hover:text-foreground transition-colors duration-150"
           >
             <ArrowLeftIcon className="w-4 h-4" />

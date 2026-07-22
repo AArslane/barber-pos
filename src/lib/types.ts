@@ -6,6 +6,12 @@ export const PAYMENT_LABELS: Record<PaymentMethod, string> = {
   other: "Autre",
 };
 
+// 'mixed' n'est pas un mode sélectionnable : c'est le marqueur d'une vente
+// réglée en plusieurs fois — le détail vit dans Sale.payments.
+export type SaleMethod = PaymentMethod | "mixed";
+
+export type SalePayment = { method: PaymentMethod; amount: number };
+
 export type ShopSettings = {
   payment_methods: Record<PaymentMethod, { enabled: boolean; label: string }>;
   security: {
@@ -100,7 +106,9 @@ export type Sale = {
   id: string;
   shop_id: string;
   barber_id: string;
-  payment_method: PaymentMethod;
+  payment_method: SaleMethod;
+  // détail des encaissements : [{method:"cash",amount:20},{method:"card",amount:5}]
+  payments: SalePayment[];
   total: number;
   // part prestations du total : base de calcul des commissions, les produits revendus n'y entrent pas
   services_total: number;
@@ -126,4 +134,26 @@ export function formatEUR(amount: number): string {
     style: "currency",
     currency: "EUR",
   }).format(amount);
+}
+
+// Détail des encaissements d'une vente. Les ventes enregistrées avant la
+// migration 0008 (encore dans Dexie) n'ont pas de champ payments : l'ancien
+// mode unique fait foi.
+export function salePayments(
+  sale: Pick<Sale, "payments" | "payment_method" | "total">,
+): SalePayment[] {
+  if (sale.payments && sale.payments.length > 0) return sale.payments;
+  return [{ method: sale.payment_method as PaymentMethod, amount: Number(sale.total) }];
+}
+
+// Libellé d'affichage : "Carte" pour un paiement simple,
+// "Espèces 20,00 € + Carte 5,00 €" pour un paiement mixte.
+export function paymentSummary(
+  sale: Pick<Sale, "payments" | "payment_method" | "total">,
+): string {
+  const parts = salePayments(sale);
+  if (parts.length === 1) return PAYMENT_LABELS[parts[0].method];
+  return parts
+    .map((p) => `${PAYMENT_LABELS[p.method]} ${formatEUR(Number(p.amount))}`)
+    .join(" + ");
 }

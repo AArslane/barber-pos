@@ -2,7 +2,14 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
-import { formatEUR, PAYMENT_LABELS, type Barber, type PaymentMethod, type Sale } from "@/lib/types";
+import {
+  formatEUR,
+  PAYMENT_LABELS,
+  salePayments,
+  type Barber,
+  type PaymentMethod,
+  type Sale,
+} from "@/lib/types";
 import { Card } from "@/components/ui/Card";
 import { StatusDot } from "@/components/ui/Badge";
 import { EmptyState } from "@/components/ui/EmptyState";
@@ -60,11 +67,17 @@ export default function TodayPage() {
   const total = completed.reduce((sum, s) => sum + Number(s.total), 0);
   const avg = completed.length > 0 ? total / completed.length : 0;
 
+  // Un paiement mixte est ventilé sur chacun de ses modes.
   const byMethod = (Object.keys(PAYMENT_LABELS) as PaymentMethod[]).map((m) => ({
     method: m,
-    amount: completed
-      .filter((s) => s.payment_method === m)
-      .reduce((sum, s) => sum + Number(s.total), 0),
+    amount: completed.reduce(
+      (sum, s) =>
+        sum +
+        salePayments(s)
+          .filter((p) => p.method === m)
+          .reduce((acc, p) => acc + Number(p.amount), 0),
+      0,
+    ),
   }));
 
   const byBarber = barbers

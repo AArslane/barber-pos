@@ -5,8 +5,8 @@ import { createClient } from "@/lib/supabase/client";
 import {
   formatEUR,
   PAYMENT_LABELS,
+  paymentSummary,
   type Barber,
-  type PaymentMethod,
   type Sale,
   type SaleItem,
 } from "@/lib/types";
@@ -53,7 +53,8 @@ export default function HistoriquePage() {
       .order("created_at", { ascending: false })
       .limit(200);
     if (barberId) query = query.eq("barber_id", barberId);
-    if (method) query = query.eq("payment_method", method);
+    // Containment jsonb : attrape les ventes pures ET les mixtes contenant ce mode.
+    if (method) query = query.contains("payments", [{ method }]);
 
     const { data, error } = await query;
     if (error) toast.error("Impossible de charger l'historique.");
@@ -143,8 +144,7 @@ export default function HistoriquePage() {
                   <p className="font-semibold">
                     {formatEUR(Number(sale.total))}
                     <span className="ml-2 text-sm font-normal text-muted">
-                      {PAYMENT_LABELS[sale.payment_method as PaymentMethod]} ·{" "}
-                      {barberName(sale.barber_id)}
+                      {paymentSummary(sale)} · {barberName(sale.barber_id)}
                     </span>
                     {sale.status === "refunded" && (
                       <Badge tone="danger" className="ml-2">

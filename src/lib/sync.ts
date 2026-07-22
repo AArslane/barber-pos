@@ -1,6 +1,12 @@
 import { createClient } from "@/lib/supabase/client";
 import { db, type PendingSale } from "@/lib/db";
-import { withShopSettingsDefaults, type Barber, type Product, type Service } from "@/lib/types";
+import {
+  salePayments,
+  withShopSettingsDefaults,
+  type Barber,
+  type Product,
+  type Service,
+} from "@/lib/types";
 
 // Codes Postgres (via PostgREST) qui signalent un rejet définitif du serveur
 // (contrainte violée, RLS refusée...) plutôt qu'un problème réseau : inutile
@@ -99,6 +105,9 @@ export async function syncPending(): Promise<number> {
       continue;
     }
     const { items, ...saleRow } = sale;
+    // Vente enregistrée par un build antérieur au paiement mixte : compose le
+    // détail attendu par la contrainte sales_payments_valid.
+    saleRow.payments = salePayments(saleRow);
     // INSERT simple : rejouable sans doublon via le 23505 (voir isAlreadySynced),
     // et ne requiert que la policy INSERT du rôle device.
     const { error: saleError } = await supabase.from("sales").insert(saleRow);
