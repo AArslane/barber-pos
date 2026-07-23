@@ -9,12 +9,13 @@ import type { ShopSettings } from "@/lib/types";
 
 // Réglages de la boutique active (sélecteur multi-boutiques du dashboard),
 // pas d'un shop arbitraire du owner.
-export async function getShopSettings(): Promise<{ shopId: string; name: string; currency: string; settings: ShopSettings } | null> {
+export async function getShopSettings(): Promise<{ shopId: string; name: string; slug: string; currency: string; settings: ShopSettings } | null> {
   const shop = await getShop();
   if (!shop) return null;
   return {
     shopId: shop.id,
     name: shop.name,
+    slug: shop.slug,
     currency: shop.currency,
     settings: shop.settings,
   };

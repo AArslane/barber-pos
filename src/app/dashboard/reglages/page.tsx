@@ -16,7 +16,7 @@ const TABS = ["Équipe", "Prestations", "Paiements", "Sécurité", "Boutique", "
 type Tab = (typeof TABS)[number];
 
 export default function ReglagesPage() {
-  const [shop, setShop] = useState<{ shopId: string; name: string; currency: string; settings: ShopSettings } | null>(null);
+  const [shop, setShop] = useState<{ shopId: string; name: string; slug: string; currency: string; settings: ShopSettings } | null>(null);
   const [tab, setTab] = useState<Tab>("Équipe");
 
   useEffect(() => {
@@ -68,7 +68,10 @@ export default function ReglagesPage() {
           shopId={shop.shopId}
           name={shop.name}
           currency={shop.currency}
+          slug={shop.slug}
+          settings={shop.settings}
           onSaved={(name, currency) => setShop({ ...shop, name, currency })}
+          onSavedSettings={(s) => setShop({ ...shop, settings: s })}
         />
       )}
       {tab === "Abonnement" && <AbonnementTab shopId={shop.shopId} />}

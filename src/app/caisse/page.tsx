@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useLiveQuery } from "dexie-react-hooks";
 import { db, getDeviceId } from "@/lib/db";
@@ -25,6 +25,7 @@ import { cn } from "@/lib/cn";
 import {
   ArrowLeftIcon,
   BanknoteIcon,
+  CalendarIcon,
   CheckIcon,
   CreditCardIcon,
   LockIcon,
@@ -33,6 +34,8 @@ import {
   WalletIcon,
   XIcon,
 } from "@/components/icons";
+import { CAISSE_PREFILL_KEY, type CaissePrefill } from "@/components/agenda/AgendaDay";
+import { createClient } from "@/lib/supabase/client";
 
 // Un ticket mélange librement prestations et produits ; `kind` décide de la
 // colonne remplie côté sale_items et de ce qui compte dans services_total.
@@ -60,11 +63,43 @@ export default function CaissePage() {
   // Éditeur de paiement mixte (null = choix classique d'un seul mode).
   // Montants saisis en texte, un champ par mode actif.
   const [split, setSplit] = useState<Partial<Record<PaymentMethod, string>> | null>(null);
+  // RDV en cours d'encaissement (venu de l'agenda) : marqué "Honoré" après la vente.
+  const [appointmentId, setAppointmentId] = useState<string | null>(null);
+  const prefillDone = useRef(false);
 
   useEffect(() => {
     startSyncLoop();
     void refreshCatalog();
   }, []);
+
+  // Pré-remplissage depuis l'agenda : coiffeur sélectionné (PIN respecté) et
+  // prestation au ticket. Appliqué une seule fois, quand le catalogue est prêt.
+  useEffect(() => {
+    /* eslint-disable react-hooks/set-state-in-effect -- synchronisation ponctuelle depuis sessionStorage (système externe) */
+    if (prefillDone.current || !barbers || !services) return;
+    const raw = sessionStorage.getItem(CAISSE_PREFILL_KEY);
+    if (!raw) return;
+    prefillDone.current = true;
+    sessionStorage.removeItem(CAISSE_PREFILL_KEY);
+    try {
+      const prefill = JSON.parse(raw) as CaissePrefill;
+      setAppointmentId(prefill.appointment_id);
+      const svc = services.find((s) => s.id === prefill.service_id);
+      if (svc) setCart([{ kind: "service", item: svc, qty: 1 }]);
+      const b = barbers.find((x) => x.id === prefill.barber_id);
+      if (b) {
+        if (b.pin_hash) {
+          setPinTarget(b);
+        } else {
+          setBarber(b);
+          setStep("catalog");
+        }
+      }
+    } catch {
+      // prefill corrompu : on repart sur une caisse vierge
+    }
+    /* eslint-enable react-hooks/set-state-in-effect */
+  }, [barbers, services]);
 
   const total = cart.reduce((sum, l) => sum + l.item.price * l.qty, 0);
   const servicesTotal = cart.reduce(
@@ -127,6 +162,17 @@ export default function CaissePage() {
         qty: l.qty,
       })),
     });
+    // Vente issue d'un RDV : le RDV passe "Honoré". Best effort en ligne —
+    // hors connexion, il reste "Réservé", sans bloquer l'encaissement.
+    if (appointmentId) {
+      const id = appointmentId;
+      setAppointmentId(null);
+      void createClient()
+        .from("appointments")
+        .update({ status: "done" })
+        .eq("id", id)
+        .then(() => {});
+    }
     setLastTotal(total);
     setSplit(null);
     setStep("done");
@@ -138,6 +184,7 @@ export default function CaissePage() {
     setBarber(null);
     setCatalogTab("services");
     setSplit(null);
+    setAppointmentId(null);
     setStep("barber");
   }
 
@@ -203,6 +250,13 @@ export default function CaissePage() {
         </div>
         <div className="flex items-center gap-4">
           <SyncBadge />
+          <Link
+            href="/caisse/agenda"
+            className="flex items-center gap-1.5 text-xs text-muted hover:text-foreground transition-colors duration-150 min-h-11 px-2"
+          >
+            <CalendarIcon className="w-3.5 h-3.5" />
+            Agenda
+          </Link>
           <Link
             href="/dashboard"
             className="flex items-center gap-1.5 text-xs text-muted hover:text-foreground transition-colors duration-150 min-h-11 px-2"

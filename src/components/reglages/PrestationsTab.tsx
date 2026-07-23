@@ -161,6 +161,7 @@ const ServiceRow = memo(function ServiceRow({
   const [name, setName] = useState(service.name);
   const [price, setPrice] = useState(String(service.price));
   const [category, setCategory] = useState(service.category);
+  const [duration, setDuration] = useState(String(service.duration_min));
   const toast = useToast();
 
   function commit(changes: Partial<Service>) {
@@ -218,6 +219,23 @@ const ServiceRow = memo(function ServiceRow({
         className="w-32"
         placeholder="Catégorie"
       />
+      <label className="flex items-center gap-2 text-sm text-muted">
+        Durée
+        <Input
+          type="number"
+          min={5}
+          max={480}
+          step={5}
+          value={duration}
+          onChange={(e) => setDuration(e.target.value)}
+          onBlur={() => {
+            const d = Number(duration);
+            if (d >= 5 && d <= 480 && d !== service.duration_min) commit({ duration_min: d });
+          }}
+          className="w-20"
+        />
+        min
+      </label>
       <div className="ml-auto flex items-center gap-1">
         <Button variant="ghost" onClick={onDuplicate}>
           Dupliquer

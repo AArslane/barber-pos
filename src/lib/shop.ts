@@ -38,7 +38,7 @@ export const getShop = cache(async function getShop() {
   const supabase = await createClient("owner");
   const { data, error } = await supabase
     .from("shops")
-    .select("id, name, currency, settings, trial_ends_at")
+    .select("id, name, slug, currency, settings, trial_ends_at")
     .eq("id", activeId)
     .single();
   if (error || !data) return null;
@@ -50,6 +50,7 @@ export const getShop = cache(async function getShop() {
   return {
     id: data.id as string,
     name: data.name as string,
+    slug: data.slug as string,
     currency: data.currency as string,
     settings,
     trialEndsAt: (data.trial_ends_at as string | null) ?? null,

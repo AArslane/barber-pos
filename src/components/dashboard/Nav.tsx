@@ -6,6 +6,7 @@ import { cn } from "@/lib/cn";
 import { switchActiveShop } from "@/app/dashboard/shop-actions";
 import type { MemberShop } from "@/lib/shop";
 import {
+  CalendarIcon,
   ChartIcon,
   HistoryIcon,
   HomeIcon,
@@ -16,6 +17,7 @@ import {
 
 const LINKS = [
   { href: "/dashboard", label: "Aujourd'hui", icon: HomeIcon },
+  { href: "/dashboard/agenda", label: "Agenda", icon: CalendarIcon },
   { href: "/dashboard/historique", label: "Historique", icon: HistoryIcon },
   { href: "/dashboard/stats", label: "Stats", icon: ChartIcon },
   { href: "/dashboard/commissions", label: "Commissions", icon: PercentIcon },
